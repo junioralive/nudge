@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nudge",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [],
+  "ratelimits": [
+    { "name": "LOGIN_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "VOICE_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } }
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "APP_TIMEZONE": "UTC",
+    "VAPID_SUBJECT": "https://nudge.example.com",
+    "NUDGE_ASSISTANT_GENDER": "they",
+    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
+    "GEMINI_REMINDER_MODEL": "gemini-3.5-flash-lite"
+  },
+  "secrets": {
+    "required": ["NUDGE_AUTH_KEY", "SESSION_SECRET", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]
+  }
+}
