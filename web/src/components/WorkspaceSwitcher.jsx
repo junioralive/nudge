@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
+import WorkspaceActions from "./WorkspaceActions.jsx";
 
-export default function WorkspaceSwitcher({ workspaces, active, onSelect, onAdd, onDelete, vertical, className = "" }) {
+export default function WorkspaceSwitcher({ workspaces, active, onSelect, onAdd, onManage, workspaceColors = {}, vertical, className = "" }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -22,8 +23,8 @@ export default function WorkspaceSwitcher({ workspaces, active, onSelect, onAdd,
       </button>
       {workspaces.map((ws) => (
         <span className="workspace-switcher-item" key={ws}>
-          <button className={active === ws ? "active" : ""} onClick={() => onSelect(ws)}>{ws}</button>
-          {ws !== "Personal" && <button className="workspace-delete-btn" onClick={() => onDelete?.(ws)} aria-label={`Delete ${ws}`} title="Delete workspace"><Trash2 size={12} /></button>}
+          <button className={active === ws ? "active" : ""} onClick={() => onSelect(ws)}><span className="workspace-switcher-dot" style={{ backgroundColor: workspaceColors[ws] }} />{ws}</button>
+          <WorkspaceActions workspace={ws} onAction={onManage} />
         </span>
       ))}
       {adding ? (

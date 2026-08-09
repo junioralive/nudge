@@ -48,6 +48,10 @@ export function createWorkspace(name) {
   return apiFetch("/api/workspaces", { method: "POST", body: JSON.stringify({ name }) });
 }
 
+export function updateWorkspace(name, values) {
+  return apiFetch(`/api/workspaces/${encodeURIComponent(name)}`, { method: "PATCH", body: JSON.stringify(values) });
+}
+
 export function deleteWorkspace(name) {
   return apiFetch(`/api/workspaces/${encodeURIComponent(name)}`, { method: "DELETE" });
 }

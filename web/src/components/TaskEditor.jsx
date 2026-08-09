@@ -12,7 +12,7 @@ export default function TaskEditor({ task, workspaces, onClose, onSave }) {
   async function submit(event) { event.preventDefault(); if (!title.trim()) return; setSaving(true); try { await onSave({ text: title.trim(), details, due_at: due, workspace, follow_up_interval_minutes: Number(interval), follow_up_max_count: Number(max) }); } finally { setSaving(false); } }
   return <div className="editor-overlay" role="dialog" aria-modal="true" aria-labelledby="task-editor-title">
     <div className="task-editor-dialog">
-      <header className="editor-head"><h2 id="task-editor-title">Edit task</h2><button type="button" onClick={onClose} aria-label="Close task editor"><X size={18} /></button></header>
+      <header className="editor-head"><h2 id="task-editor-title">Edit task</h2><button type="button" className="settings-close" onClick={onClose} aria-label="Close task editor"><X size={18} /></button></header>
       <form className="task-editor" onSubmit={submit}>
       <label>Title<input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} /></label>
       <label>Details<textarea value={details} maxLength={10000} onChange={(e) => setDetails(e.target.value)} /></label>

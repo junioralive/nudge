@@ -22,6 +22,7 @@ const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview";
 const ASSISTANT_VOICES = new Set(ASSISTANT_VOICE_NAMES);
+const WORKSPACE_COLORS = new Set(["#E787FF", "#FFC66D", "#6FD69A", "#7FB2FF", "#FF9BC2", "#A99AF2"]);
 
 app.use("/api/*", async (c, next) => {
   await next();
@@ -44,6 +45,15 @@ function normalizeDueAt(value: unknown): string | null | undefined {
 
 async function jsonBody<T>(c: { req: { json<U>(): Promise<U> } }): Promise<T> {
   return c.req.json<T>().catch(() => ({} as T));
+}
+
+async function workspacePayload(env: Env) {
+  const rows = await env.DB.prepare("SELECT name, color FROM workspaces ORDER BY sort_order, created_at").all<{ name: string; color: string }>();
+  const results = rows.results || [];
+  return {
+    workspaces: results.map((row) => row.name),
+    workspace_colors: Object.fromEntries(results.map((row) => [row.name, row.color])),
+  };
 }
 
 app.post("/api/auth/login", async (c) => {
@@ -168,7 +178,7 @@ app.delete("/api/tasks/:id", async (c) => {
 app.get("/api/bootstrap", async (c) => {
   const [settings, workspaces] = await Promise.all([
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string }>(),
-    c.env.DB.prepare("SELECT name FROM workspaces ORDER BY sort_order, created_at").all<{ name: string }>(),
+    c.env.DB.prepare("SELECT name, color FROM workspaces ORDER BY sort_order, created_at").all<{ name: string; color: string }>(),
   ]);
   const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
   return c.json({
@@ -178,6 +188,7 @@ app.get("/api/bootstrap", async (c) => {
     assistant_gender: profile.assistant_gender === "he" ? "he" : "she",
     assistant_voice: ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr",
     workspaces: (workspaces.results || []).map((row) => row.name),
+    workspace_colors: Object.fromEntries((workspaces.results || []).map((row) => [row.name, row.color])),
   });
 });
 
@@ -238,8 +249,30 @@ app.post("/api/workspaces", async (c) => {
   )
     .bind(name)
     .run();
-  const rows = await c.env.DB.prepare("SELECT name FROM workspaces ORDER BY sort_order, created_at").all<{ name: string }>();
-  return c.json({ workspaces: (rows.results || []).map((row) => row.name) }, 201);
+  return c.json(await workspacePayload(c.env), 201);
+});
+
+app.patch("/api/workspaces/:name", async (c) => {
+  const currentName = cleanText(decodeURIComponent(c.req.param("name")), 80);
+  const body = await jsonBody<{ name?: string; color?: string }>(c);
+  const existing = await c.env.DB.prepare("SELECT name, color FROM workspaces WHERE lower(name) = lower(?)").bind(currentName).first<{ name: string; color: string }>();
+  if (!existing) return c.json({ error: "workspace not found" }, 404);
+
+  const nextName = body.name === undefined ? existing.name : cleanText(body.name, 80);
+  const nextColor = body.color === undefined ? existing.color : cleanText(body.color, 16).toUpperCase();
+  if (!nextName || nextName.toLowerCase() === "all") return c.json({ error: "invalid workspace" }, 400);
+  if (!WORKSPACE_COLORS.has(nextColor)) return c.json({ error: "unsupported workspace color" }, 400);
+  if (existing.name.toLowerCase() === "personal" && nextName.toLowerCase() !== "personal") return c.json({ error: "Personal workspace cannot be renamed" }, 400);
+  if (nextName.toLowerCase() !== existing.name.toLowerCase()) {
+    const duplicate = await c.env.DB.prepare("SELECT 1 FROM workspaces WHERE lower(name) = lower(?)").bind(nextName).first();
+    if (duplicate) return c.json({ error: "workspace already exists" }, 409);
+  }
+
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE tasks SET workspace = ? WHERE lower(workspace) = lower(?)").bind(nextName, existing.name),
+    c.env.DB.prepare("UPDATE workspaces SET name = ?, color = ? WHERE lower(name) = lower(?)").bind(nextName, nextColor, existing.name),
+  ]);
+  return c.json({ ok: true, ...(await workspacePayload(c.env)) });
 });
 
 app.delete("/api/workspaces/:name", async (c) => {
@@ -254,8 +287,7 @@ app.delete("/api/workspaces/:name", async (c) => {
     c.env.DB.prepare("UPDATE tasks SET workspace = 'Personal' WHERE lower(workspace) = lower(?)").bind(existing.name),
     c.env.DB.prepare("DELETE FROM workspaces WHERE lower(name) = lower(?)").bind(existing.name),
   ]);
-  const rows = await c.env.DB.prepare("SELECT name FROM workspaces ORDER BY sort_order, created_at").all<{ name: string }>();
-  return c.json({ ok: true, workspaces: (rows.results || []).map((row) => row.name) });
+  return c.json({ ok: true, ...(await workspacePayload(c.env)) });
 });
 
 app.get("/api/vapid-public-key", (c) => c.json({ key: c.env.VAPID_PUBLIC_KEY }));

@@ -15,6 +15,7 @@ import {
   logout,
   updateProfile,
   updateTask,
+  updateWorkspace,
 } from "./api.js";
 import { disablePushNotifications, enablePushNotifications, reconcilePushNotifications, sendPushTest } from "./push.js";
 import { retryPushDeliveries } from "./api.js";
@@ -41,6 +42,7 @@ import NotificationsView from "./components/NotificationsView.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import TaskEditor from "./components/TaskEditor.jsx";
 import SettingsView from "./components/SettingsView.jsx";
+import WorkspaceDialog from "./components/WorkspaceDialog.jsx";
 
 const VoicePanel = lazy(() => import("./components/VoicePanel.jsx"));
 const MemoriesView = lazy(() => import("./components/MemoriesView.jsx"));
@@ -95,6 +97,8 @@ function NudgeApp({ onLogout }) {
   const [name, setNameState] = useState(getName());
   const [profile, setProfile] = useState({ name: getName(), timezone: "Asia/Kolkata", assistantGender: "she", assistantVoice: "Zephyr" });
   const [workspaces, setWorkspaces] = useState(getWorkspaces());
+  const [workspaceColors, setWorkspaceColors] = useState({});
+  const [workspaceDialog, setWorkspaceDialog] = useState(null);
   const [activeWorkspace, setActiveWorkspaceState] = useState(getActiveWorkspace());
   const [showAddForm, setShowAddForm] = useState(false);
   const [view, setView] = useState("home");
@@ -130,6 +134,7 @@ function NudgeApp({ onLogout }) {
         });
         saveName(bootstrap.name);
         setWorkspaces(bootstrap.workspaces);
+        setWorkspaceColors(bootstrap.workspace_colors || {});
         if (activeWorkspace !== "All" && !bootstrap.workspaces.includes(activeWorkspace)) {
           setActiveWorkspaceState("All");
           saveActiveWorkspace("All");
@@ -196,6 +201,7 @@ function NudgeApp({ onLogout }) {
     try {
       const result = await createWorkspace(workspace);
       setWorkspaces(result.workspaces);
+      setWorkspaceColors(result.workspace_colors || {});
     } catch (error) {
       setLoadError(error.message);
     }
@@ -203,15 +209,25 @@ function NudgeApp({ onLogout }) {
 
   async function handleDeleteWorkspace(workspace) {
     if (workspace === "Personal") return;
-    if (!window.confirm(`Delete “${workspace}”? Its tasks will move to Personal.`)) return;
-    try {
-      const result = await deleteWorkspace(workspace);
-      setWorkspaces(result.workspaces);
-      if (activeWorkspace === workspace) handleSelectWorkspace("All");
-      await refresh();
-    } catch (error) {
-      setLoadError(error.message);
-    }
+    const result = await deleteWorkspace(workspace);
+    setWorkspaces(result.workspaces);
+    setWorkspaceColors(result.workspace_colors || {});
+    if (activeWorkspace === workspace) handleSelectWorkspace("All");
+    await refresh();
+  }
+
+  async function handleUpdateWorkspace(workspace, values) {
+    const result = await updateWorkspace(workspace, values);
+    setWorkspaces(result.workspaces);
+    setWorkspaceColors(result.workspace_colors || {});
+    if (values.name && activeWorkspace === workspace) handleSelectWorkspace(values.name);
+    await refresh();
+  }
+
+  async function handleWorkspaceDialogConfirm(values) {
+    if (!workspaceDialog) return;
+    if (workspaceDialog.mode === "delete") return handleDeleteWorkspace(workspaceDialog.workspace);
+    return handleUpdateWorkspace(workspaceDialog.workspace, values);
   }
 
   async function handleAdd(text, dueAt, workspace, extra = {}) {
@@ -310,7 +326,7 @@ function NudgeApp({ onLogout }) {
     <div className="shell">
       <Sidebar
         name={name} workspaces={workspaces} activeWorkspace={activeWorkspace}
-        onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onDeleteWorkspace={handleDeleteWorkspace} pushEnabled={pushEnabled} capabilities={capabilities}
+        onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onManageWorkspace={(mode, workspace) => setWorkspaceDialog({ mode, workspace })} workspaceColors={workspaceColors} pushEnabled={pushEnabled} capabilities={capabilities}
         onAdd={() => setShowAddForm(true)} counts={workspaceCounts} totalOpen={openTasks.length} doneToday={doneToday}
         view={view} onNavigate={setView} onTalk={() => setVoiceOpen(true)} onLogout={onLogout}
       />
@@ -318,13 +334,13 @@ function NudgeApp({ onLogout }) {
         {loadError && <div className="app-error" role="alert">{loadError}</div>}
         <div className="topbar">
           <Header name={name} onNameChange={handleNameChange} onSettings={() => setView("settings")} onLogout={onLogout}
-            workspaces={workspaces} activeWorkspace={activeWorkspace} onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onDeleteWorkspace={handleDeleteWorkspace} />
+            workspaces={workspaces} activeWorkspace={activeWorkspace} onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onManageWorkspace={(mode, workspace) => setWorkspaceDialog({ mode, workspace })} workspaceColors={workspaceColors} />
           <TodayCard pendingToday={todayCount} totalOpen={openTasks.length} />
         </div>
         <WorkspaceSwitcher className="mobile-only" workspaces={workspaces} active={activeWorkspace}
-          onSelect={handleSelectWorkspace} onAdd={handleAddWorkspace} onDelete={handleDeleteWorkspace} />
+          onSelect={handleSelectWorkspace} onAdd={handleAddWorkspace} onManage={(mode, workspace) => setWorkspaceDialog({ mode, workspace })} workspaceColors={workspaceColors} />
 
-        {view === "calendar" ? <CalendarView tasks={calendarTasks} workspaces={workspaces} onComplete={handleComplete} />
+        {view === "calendar" ? <CalendarView tasks={calendarTasks} workspaces={workspaces} workspaceColors={workspaceColors} onComplete={handleComplete} />
           : view === "notifications" ? <NotificationsView tasks={calendarTasks} pushStatus={pushStatus}
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
@@ -345,6 +361,7 @@ function NudgeApp({ onLogout }) {
         view={view} onNavigate={setView} onTalk={() => setVoiceOpen(true)} voiceOpen={voiceOpen} />
       {voiceOpen && <Suspense fallback={null}><VoicePanel onClose={() => setVoiceOpen(false)} onTaskChange={refresh} activeWorkspace={activeWorkspace} /></Suspense>}
       {editingTask && <TaskEditor task={editingTask} workspaces={workspaces} onClose={() => setEditingTask(null)} onSave={async (values) => { await handleEdit(editingTask, values); setEditingTask(null); }} />}
+      {workspaceDialog && <WorkspaceDialog dialog={workspaceDialog} currentColor={workspaceColors[workspaceDialog.workspace]} onClose={() => setWorkspaceDialog(null)} onConfirm={handleWorkspaceDialogConfirm} />}
     </div>
   );
 }

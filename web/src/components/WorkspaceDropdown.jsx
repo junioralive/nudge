@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
+import WorkspaceActions from "./WorkspaceActions.jsx";
 
-export default function WorkspaceDropdown({ workspaces, active, onSelect, onAdd, onDelete }) {
+export default function WorkspaceDropdown({ workspaces, active, onSelect, onAdd, onManage, workspaceColors = {} }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -72,8 +73,8 @@ export default function WorkspaceDropdown({ workspaces, active, onSelect, onAdd,
             </button>
             {workspaces.map((ws) => (
               <div className={`ws-dropdown-row ${active === ws ? "active" : ""}`} key={ws}>
-                <button className="ws-dropdown-item" onClick={() => pick(ws)}>{ws}</button>
-                {ws !== "Personal" && <button className="ws-dropdown-delete" onClick={() => onDelete?.(ws)} aria-label={`Delete ${ws}`} title="Delete workspace"><Trash2 size={13} /></button>}
+                <button className="ws-dropdown-item" onClick={() => pick(ws)}><span className="ws-dropdown-dot" style={{ backgroundColor: workspaceColors[ws] }} />{ws}</button>
+                <WorkspaceActions workspace={ws} onAction={onManage} />
               </div>
             ))}
             {adding ? (

@@ -1,9 +1,8 @@
-import { Home, Bell, CalendarDays, Plus, Check, Mic, Brain, Trash2 } from "lucide-react";
+import { Home, Bell, CalendarDays, Plus, Check, Mic, Brain } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
-
-const DOT_TONES = ["dot-purple", "dot-amber", "dot-mint", "dot-blue", "dot-rose"];
+import WorkspaceActions from "./WorkspaceActions.jsx";
 
 export default function Sidebar({
   name,
@@ -11,7 +10,8 @@ export default function Sidebar({
   activeWorkspace,
   onSelectWorkspace,
   onAddWorkspace,
-  onDeleteWorkspace,
+  onManageWorkspace,
+  workspaceColors = {},
   pushEnabled,
   onAdd,
   counts,
@@ -77,14 +77,14 @@ export default function Sidebar({
           <span className="ws-count">{totalOpen}</span>
         </button>
 
-        {workspaces.map((ws, i) => (
+        {workspaces.map((ws) => (
           <div className={`ws-item-row ${activeWorkspace === ws ? "active" : ""}`} key={ws}>
             <button className="ws-item" onClick={() => onSelectWorkspace(ws)}>
-              <span className={`ws-dot ${DOT_TONES[i % DOT_TONES.length]}`} />
+              <span className="ws-dot" style={{ backgroundColor: workspaceColors[ws] }} />
               <span className="ws-name">{ws}</span>
               <span className="ws-count">{counts[ws] || 0}</span>
             </button>
-            {ws !== "Personal" && <button className="ws-delete-btn" onClick={() => onDeleteWorkspace?.(ws)} aria-label={`Delete ${ws}`} title="Delete workspace"><Trash2 size={13} /></button>}
+            <WorkspaceActions workspace={ws} onAction={onManageWorkspace} />
           </div>
         ))}
 

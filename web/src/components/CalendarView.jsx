@@ -4,10 +4,9 @@ import { buildMonthGrid, dateKey, taskDateKey, WEEKDAY_LABELS } from "../lib/cal
 import TaskCard from "./TaskCard.jsx";
 
 const MONTH_LABEL = { month: "long", year: "numeric" };
-const DOT_TONES = ["dot-purple", "dot-amber", "dot-mint", "dot-blue", "dot-rose"];
 const CARD_TONES = ["tone-purple", "tone-amber", "tone-mint", "tone-neutral"];
 
-export default function CalendarView({ tasks, workspaces, onComplete }) {
+export default function CalendarView({ tasks, workspaces, workspaceColors = {}, onComplete }) {
   const today = new Date();
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState(dateKey(today));
@@ -24,14 +23,6 @@ export default function CalendarView({ tasks, workspaces, onComplete }) {
     }
     return map;
   }, [tasks]);
-
-  const workspaceTone = useMemo(() => {
-    const tones = {};
-    workspaces.forEach((ws, i) => {
-      tones[ws] = DOT_TONES[i % DOT_TONES.length];
-    });
-    return tones;
-  }, [workspaces]);
 
   function shiftMonth(delta) {
     setCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
@@ -94,7 +85,8 @@ export default function CalendarView({ tasks, workspaces, onComplete }) {
                   {dayTasks.slice(0, 3).map((t) => (
                     <span
                       key={t.id}
-                      className={`calendar-dot ${workspaceTone[t.workspace] || "dot-purple"}`}
+                      className="calendar-dot"
+                      style={{ backgroundColor: workspaceColors[t.workspace] || "#E787FF" }}
                     />
                   ))}
                   {dayTasks.length > 3 && <span className="calendar-dot-more">+{dayTasks.length - 3}</span>}

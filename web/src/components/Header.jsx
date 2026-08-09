@@ -11,7 +11,8 @@ export default function Header({
   activeWorkspace,
   onSelectWorkspace,
   onAddWorkspace,
-  onDeleteWorkspace,
+  onManageWorkspace,
+  workspaceColors,
 }) {
   return (
     <div className="header">
@@ -24,7 +25,8 @@ export default function Header({
             active={activeWorkspace}
             onSelect={onSelectWorkspace}
             onAdd={onAddWorkspace}
-            onDelete={onDeleteWorkspace}
+            onManage={onManageWorkspace}
+            workspaceColors={workspaceColors}
           />
           , <NameEditor name={name} onChange={onNameChange} />?
         </h1>
