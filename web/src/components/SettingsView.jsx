@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { BellRing, Brain, Check, Mic2, Settings2, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BellRing, Brain, Check, LoaderCircle, Mic2, Settings2, UserRound, Volume2 } from "lucide-react";
+import { PlaybackQueue } from "../voice/playbackQueue.ts";
+import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 
 const VOICES = [
   ["Zephyr", "Bright"],
@@ -21,9 +23,13 @@ export default function SettingsView({ profile, capabilities, onSave }) {
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("nudge-sound") !== "off");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [section, setSection] = useState("profile");
+  const previewRef = useRef(null);
   const timezones = useMemo(() => availableTimezones(draft.timezone), [draft.timezone]);
 
   useEffect(() => setDraft(profile), [profile]);
+  useEffect(() => () => previewRef.current?.(), []);
 
   function update(key, value) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -49,46 +55,127 @@ export default function SettingsView({ profile, capabilities, onSave }) {
     }
   }
 
-  return (
-    <section className="settings-view">
-      <header className="settings-head">
-        <span className="settings-head-icon"><Settings2 size={20} /></span>
-        <div><h2>Settings</h2><p>Make Nudge feel like yours.</p></div>
-      </header>
+  async function previewVoice() {
+    previewRef.current?.();
+    setPreviewing(true);
+    setStatus(`Preparing ${draft.assistantVoice}…`);
+    const playback = new PlaybackQueue();
+    let connection;
+    let disposed = false;
+    let drainTimer;
+    let resolveOpen;
+    const opened = new Promise((resolve) => { resolveOpen = resolve; });
+    const cleanup = () => {
+      if (disposed) return;
+      disposed = true;
+      clearTimeout(drainTimer);
+      connection?.disconnect();
+      playback.dispose();
+      previewRef.current = null;
+      setPreviewing(false);
+    };
+    previewRef.current = cleanup;
 
-      <div className="settings-grid">
-        <article className="settings-card">
-          <div className="settings-card-title"><UserRound size={17} /><div><h3>Profile</h3><p>How Nudge knows you.</p></div></div>
-          <label className="settings-field"><span>Display name</span><input maxLength={80} value={draft.name} onChange={(event) => update("name", event.target.value)} /></label>
-          <label className="settings-field"><span>Timezone</span><select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)}>{timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label>
-        </article>
+    try {
+      await playback.init();
+      await onSave(draft);
+      connection = new VoiceConnectionManager({
+        onOpen: () => resolveOpen(true),
+        onAudio: (audio) => playback.enqueueAudio(audio),
+        onModelText: () => {},
+        onTranscript: () => {},
+        onInterrupted: () => {},
+        onToolResult: () => {},
+        onGoAway: () => {},
+        onReconnecting: () => {},
+        onClose: () => {},
+        onError: (message) => { resolveOpen(false); setStatus(message || "Could not preview this voice"); cleanup(); },
+        onTurnComplete: () => {
+          connection.disconnect();
+          const waitForAudio = () => {
+            if (playback.bufferedMs() > 0) drainTimer = setTimeout(waitForAudio, 150);
+            else { setStatus(`${draft.assistantVoice} preview complete`); cleanup(); }
+          };
+          drainTimer = setTimeout(waitForAudio, 150);
+        },
+      });
+      await connection.connect();
+      if (!await opened) return;
+      setStatus(`Playing ${draft.assistantVoice}…`);
+      connection.sendText("Voice preview only. Say exactly: Hi, I'm Nudge. This is how I sound.");
+    } catch (error) {
+      setStatus(error.message || "Could not preview this voice");
+      cleanup();
+    }
+  }
 
-        <article className="settings-card">
-          <div className="settings-card-title"><Mic2 size={17} /><div><h3>Assistant</h3><p>Choose Nudge's identity and voice.</p></div></div>
-          <fieldset className="settings-field"><legend>Assistant gender</legend><div className="settings-segmented">
-            {["she", "he"].map((gender) => <button type="button" key={gender} className={draft.assistantGender === gender ? "active" : ""} onClick={() => update("assistantGender", gender)}>{gender === "she" ? "She / her" : "He / him"}</button>)}
-          </div></fieldset>
-          <label className="settings-field"><span>Voice</span><select value={draft.assistantVoice} onChange={(event) => update("assistantVoice", event.target.value)}>{VOICES.map(([voice, character]) => <option value={voice} key={voice}>{voice} · {character}</option>)}</select></label>
-          {!capabilities.gemini && <p className="settings-note">Add a Gemini API key to enable voice controls.</p>}
-        </article>
+  const menu = [
+    ["profile", UserRound, "Profile"],
+    ["assistant", Mic2, "Assistant"],
+    ["notifications", BellRing, "Notifications"],
+    ["capabilities", Brain, "Capabilities"],
+  ];
 
-        <article className="settings-card">
-          <div className="settings-card-title"><BellRing size={17} /><div><h3>Notification experience</h3><p>Controls sound while Nudge is open.</p></div></div>
+  const saveFooter = <footer className="settings-panel-footer">
+    <span className={status.includes("saved") ? "success" : ""}>{status}</span>
+    <button type="button" onClick={save} disabled={saving || !draft.name.trim()}>{saving ? "Saving…" : "Save changes"}</button>
+  </footer>;
+
+  return <section className="settings-view">
+    <header className="settings-head">
+      <span className="settings-head-icon"><Settings2 size={20} /></span>
+      <div><h2>Settings</h2><p>Manage your profile and Nudge preferences.</p></div>
+    </header>
+
+    <div className="settings-layout">
+      <nav className="settings-menu" aria-label="Settings sections">
+        {menu.map(([id, Icon, label]) => <button type="button" key={id} className={section === id ? "active" : ""} onClick={() => { setSection(id); setStatus(""); }}><Icon size={16} /><span>{label}</span></button>)}
+      </nav>
+
+      <div className="settings-panel">
+        {section === "profile" && <article className="settings-card">
+          <div className="settings-card-title"><UserRound size={18} /><div><h3>Profile</h3><p>How Nudge knows and addresses you.</p></div></div>
+          <div className="settings-form">
+            <label className="settings-field"><span>Display name</span><input maxLength={80} value={draft.name} onChange={(event) => update("name", event.target.value)} /></label>
+            <label className="settings-field"><span>Timezone</span><select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)}>{timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label>
+          </div>
+          {saveFooter}
+        </article>}
+
+        {section === "assistant" && <article className="settings-card">
+          <div className="settings-card-title"><Mic2 size={18} /><div><h3>Assistant</h3><p>Choose Nudge's identity and speaking voice.</p></div></div>
+          <div className="settings-form">
+            <fieldset className="settings-field"><legend>Assistant gender</legend><div className="settings-segmented">
+              {["she", "he"].map((gender) => <button type="button" key={gender} className={draft.assistantGender === gender ? "active" : ""} onClick={() => update("assistantGender", gender)}>{gender === "she" ? "She / her" : "He / him"}</button>)}
+            </div></fieldset>
+            <label className="settings-field"><span>Voice</span><select value={draft.assistantVoice} onChange={(event) => update("assistantVoice", event.target.value)}>{VOICES.map(([voice, character]) => <option value={voice} key={voice}>{voice} · {character}</option>)}</select></label>
+            <button type="button" className="voice-preview-btn" onClick={previewVoice} disabled={!capabilities.gemini || previewing}>
+              {previewing ? <LoaderCircle className="spin" size={15} /> : <Volume2 size={15} />}
+              {previewing ? "Playing preview…" : `Preview ${draft.assistantVoice}`}
+            </button>
+            {!capabilities.gemini && <p className="settings-note">Add a Gemini API key to enable voice controls and previews.</p>}
+          </div>
+          {saveFooter}
+        </article>}
+
+        {section === "notifications" && <article className="settings-card">
+          <div className="settings-card-title"><BellRing size={18} /><div><h3>Notifications</h3><p>Control how reminders behave on this device.</p></div></div>
           <button type="button" className="settings-toggle-row" onClick={toggleSound} aria-pressed={soundEnabled}>
-            <span><strong>Foreground sound</strong><small>Play the Nudge sound for reminders received while the app is open.</small></span>
+            <span><strong>Foreground sound</strong><small>Play the Nudge sound when a reminder arrives while the app is open.</small></span>
             <span className={`settings-switch ${soundEnabled ? "on" : ""}`}><i /></span>
           </button>
-        </article>
+          <p className="settings-auto-note"><Check size={13} /> Changes on this page save automatically.</p>
+        </article>}
 
-        <article className="settings-card settings-capabilities">
-          <div className="settings-card-title"><Brain size={17} /><div><h3>Capabilities</h3><p>Optional features connected to this Nudge.</p></div></div>
-          <div className="capability-row"><span>Gemini voice</span><strong className={capabilities.gemini ? "ready" : "off"}>{capabilities.gemini ? <><Check size={13} /> Ready</> : "Not configured"}</strong></div>
-          <div className="capability-row"><span>Second Brain</span><strong className={capabilities.secondBrain ? "ready" : "off"}>{capabilities.secondBrain ? <><Check size={13} /> Ready</> : "Not configured"}</strong></div>
-          <div className="capability-row"><span>Push notifications</span><strong className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</strong></div>
-        </article>
+        {section === "capabilities" && <article className="settings-card settings-capabilities">
+          <div className="settings-card-title"><Brain size={18} /><div><h3>Capabilities</h3><p>Optional services connected to this Nudge.</p></div></div>
+          <div className="capability-list">
+            <div className="capability-row"><span><strong>Gemini voice</strong><small>Live conversations and task capture</small></span><b className={capabilities.gemini ? "ready" : "off"}>{capabilities.gemini ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
+            <div className="capability-row"><span><strong>Second Brain</strong><small>Durable memories and semantic recall</small></span><b className={capabilities.secondBrain ? "ready" : "off"}>{capabilities.secondBrain ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
+            <div className="capability-row"><span><strong>Push notifications</strong><small>Due-time reminders on registered devices</small></span><b className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
+          </div>
+        </article>}
       </div>
-
-      <div className="settings-actions"><span className={status.includes("saved") ? "success" : ""}>{status}</span><button type="button" onClick={save} disabled={saving || !draft.name.trim()}>{saving ? "Saving…" : "Save changes"}</button></div>
-    </section>
-  );
+    </div>
+  </section>;
 }
