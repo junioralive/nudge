@@ -12,7 +12,6 @@ export interface Env {
   SECOND_BRAIN_TOKEN?: string;
   GEMINI_API_KEY?: string;
   GEMINI_LIVE_MODEL?: string;
-  GEMINI_REMINDER_MODEL?: string;
   NUDGE_ASSISTANT_GENDER?: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;

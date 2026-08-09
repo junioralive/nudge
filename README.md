@@ -54,7 +54,7 @@ flowchart LR
 
 - **Nudge D1** stores tasks, details, workspaces, profile settings, reminders, delivery state, and push subscriptions.
 - **Second Brain** stores durable memories only when the optional integration is enabled and a memory action is explicit or approved by the assistant.
-- **Gemini** handles optional voice sessions and reminder wording. Gemini is never required for normal task operations.
+- **Gemini** handles optional voice sessions and spoken task capture. Nudge uses the configured live model only; reminders use the saved task text and do not make extra Gemini calls.
 - Raw audio, transcripts, assistant output, credentials, tokens, and private keys are not saved as memories.
 
 ## Deploy on Cloudflare
@@ -114,10 +114,10 @@ Required Worker secrets:
 
 Optional secrets:
 
-- `GEMINI_API_KEY` — enables voice and AI reminder wording
+- `GEMINI_API_KEY` — enables the voice assistant
 - `SECOND_BRAIN_TOKEN` — enables memory capture and recall
 
-Configuration variables include `APP_TIMEZONE`, `VAPID_SUBJECT`, `NUDGE_ASSISTANT_GENDER`, `GEMINI_LIVE_MODEL`, `GEMINI_REMINDER_MODEL`, and optional `SECOND_BRAIN_URL`.
+Configuration variables include `APP_TIMEZONE`, `VAPID_SUBJECT`, `NUDGE_ASSISTANT_GENDER`, `GEMINI_LIVE_MODEL`, and optional `SECOND_BRAIN_URL`.
 
 ## Optional integrations
 
@@ -125,7 +125,7 @@ Nudge is deliberately useful without external AI. Add these integrations only wh
 
 ### Gemini — voice and assistant intelligence
 
-[Google AI Studio](https://ai.google.dev/aistudio) is where you create and manage a Gemini API key. Gemini powers Nudge's optional voice assistant, structured task capture, memory-tool decisions, and concise reminder wording. It does not own your task database, and the key stays server-side in Cloudflare.
+[Google AI Studio](https://ai.google.dev/aistudio) is where you create and manage a Gemini API key. Gemini powers Nudge's optional live voice assistant, structured task capture, and memory-tool decisions. It does not own your task database, and the key stays server-side in Cloudflare. Reminders do not call Gemini separately.
 
 Setup:
 

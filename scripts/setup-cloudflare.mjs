@@ -102,7 +102,7 @@ async function main() {
 
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
-  const profileName = await ask("Your name", "Junior");
+  const profileName = await ask("Your display name in Nudge", "Junior");
   const timezone = await ask("Timezone", "Asia/Kolkata");
   const assistantGender = await askChoice("Assistant gender", ["she", "he"], "she");
   const customDomain = await ask("Custom domain (optional; leave blank for workers.dev)");

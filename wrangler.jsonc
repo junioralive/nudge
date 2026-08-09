@@ -21,8 +21,7 @@
     "APP_TIMEZONE": "UTC",
     "VAPID_SUBJECT": "https://nudge.example.com",
     "NUDGE_ASSISTANT_GENDER": "she",
-    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
-    "GEMINI_REMINDER_MODEL": "gemini-3.5-flash-lite"
+    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview"
   },
   "secrets": {
     "required": ["NUDGE_AUTH_KEY", "SESSION_SECRET", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"]
