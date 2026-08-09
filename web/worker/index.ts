@@ -170,7 +170,7 @@ app.get("/api/bootstrap", async (c) => {
   ]);
   return c.json({
     initialized: Boolean(name?.value),
-    name: name?.value || "Junior",
+    name: name?.value || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior",
     timezone: timezone?.value || c.env.APP_TIMEZONE || "Asia/Kolkata",
     workspaces: (workspaces.results || []).map((row) => row.name),
   });
@@ -180,7 +180,7 @@ app.post("/api/bootstrap", async (c) => {
   const existing = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first();
   if (existing) return c.json({ initialized: true, imported: false });
   const body = await jsonBody<{ name?: string; workspaces?: string[] }>(c);
-  const name = cleanText(body.name, 80) || "Junior";
+  const name = cleanText(body.name, 80) || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
   const workspaces = Array.isArray(body.workspaces)
     ? body.workspaces.map((value) => cleanText(value, 80)).filter(Boolean).slice(0, 50)
     : [];
@@ -343,7 +343,7 @@ app.post("/api/voice-token", async (c) => {
   const vad = body.vad || {};
   const model = c.env.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview";
   const profile = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first<{ value: string }>();
-  const profileName = profile?.value?.trim() || "Junior";
+  const profileName = profile?.value?.trim() || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
   const assistantGender = c.env.NUDGE_ASSISTANT_GENDER || "she";
   const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY });
   const expireTime = new Date(Date.now() + 30 * 60 * 1_000).toISOString();

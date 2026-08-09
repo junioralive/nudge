@@ -1,0 +1,15 @@
+# Required — choose the password/token used to unlock Nudge.
+NUDGE_AUTH_KEY=choose-your-nudge-login-password
+
+# Required — generate with: openssl rand -base64 48
+SESSION_SECRET=generate-a-random-session-secret
+
+# Required — generate together with: npx web-push generate-vapid-keys
+VAPID_PUBLIC_KEY=paste-your-vapid-public-key
+VAPID_PRIVATE_KEY=paste-your-vapid-private-key
+
+# Optional — leave blank to disable Gemini voice.
+GEMINI_API_KEY=
+
+# Optional — leave blank to disable Second Brain memory.
+SECOND_BRAIN_TOKEN=

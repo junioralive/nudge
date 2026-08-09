@@ -134,7 +134,7 @@ async function ensureDatabase(workerName, config) {
     database = created?.database_id ? { uuid: created.database_id, name: databaseName } : created;
   }
   if (!database?.uuid) throw new Error("Could not determine the D1 database ID from Wrangler.");
-  config.d1_databases = [{ binding: "DB", database_name: database.name || databaseName, database_id: database.uuid, migrations_dir: "../migrations" }];
+  config.d1_databases = [{ binding: "DB", database_name: database.name || databaseName, database_id: database.uuid, migrations_dir: "migrations" }];
   return database;
 }
 
@@ -166,6 +166,7 @@ async function main() {
   config.routes = customDomain ? [{ pattern: customDomain, custom_domain: true }] : [];
   config.vars = {
     APP_TIMEZONE: timezone,
+    NUDGE_PROFILE_NAME: profileName,
     VAPID_SUBJECT: customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`,
     NUDGE_ASSISTANT_GENDER: assistantGender,
     GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",

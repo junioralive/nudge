@@ -63,7 +63,9 @@ flowchart LR
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge)
 
-Cloudflare clones the repository and provisions the Worker project. Then run the guided setup from the new checkout to finish D1, secrets, profile, and optional integrations:
+Cloudflare clones the repository, shows the fields declared in `.dev.vars.example`, provisions D1, deploys the Worker, and applies its migrations. Field descriptions come from `package.json`; secret values are encrypted by Cloudflare and are not committed to the generated repository.
+
+For the terminal-based guided setup instead:
 
 ```sh
 npm install
@@ -91,7 +93,7 @@ Build command:  npm run cloudflare:build
 Deploy command: npm run cloudflare:deploy
 ```
 
-The repository includes a root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The guided setup writes your real D1 binding and deployment values into `web/wrangler.jsonc`; keep the build and deploy commands above so Vite generates the final Worker bundle and asset manifest before deployment.
+The repository includes a root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. Keep the build and deploy commands above so Vite generates the final Worker bundle, deploys it, and applies D1 migrations.
 
 ## Local development
 

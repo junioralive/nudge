@@ -11,10 +11,38 @@
     "build": "npm run build -w web",
     "typecheck": "npm run typecheck -w web",
     "test": "npm run test -w web",
-    "deploy": "npm run build -w web && npm exec --workspace web -- wrangler deploy",
+    "deploy": "npm run build -w web && npm exec --workspace web -- wrangler deploy && npm exec --workspace web -- wrangler d1 migrations apply DB --remote",
     "cloudflare:build": "npm run build -w web",
     "cloudflare:deploy": "npm run deploy",
     "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
     "migrate:sqlite": "node scripts/migrate-sqlite.mjs"
+  },
+  "cloudflare": {
+    "bindings": {
+      "NUDGE_AUTH_KEY": {
+        "description": "Required. Choose the password or token used to unlock your private Nudge app."
+      },
+      "SESSION_SECRET": {
+        "description": "Required. Generate a random signing secret with: openssl rand -base64 48"
+      },
+      "VAPID_PUBLIC_KEY": {
+        "description": "Required for push notifications. Generate the VAPID pair with: npx web-push generate-vapid-keys"
+      },
+      "VAPID_PRIVATE_KEY": {
+        "description": "Required for push notifications. Use the private key from the same generated VAPID pair."
+      },
+      "NUDGE_PROFILE_NAME": {
+        "description": "Your display name inside Nudge, for example Junior."
+      },
+      "GEMINI_API_KEY": {
+        "description": "Optional. Add a Google AI Studio API key to enable the live voice assistant. Leave blank to disable."
+      },
+      "SECOND_BRAIN_URL": {
+        "description": "Optional. URL of your deployed Second Brain Worker. Leave blank to disable memories."
+      },
+      "SECOND_BRAIN_TOKEN": {
+        "description": "Optional. Use the authentication token from that Second Brain deployment. Leave blank to disable."
+      }
+    }
   }
 }

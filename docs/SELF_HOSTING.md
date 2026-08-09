@@ -41,7 +41,7 @@ The import is idempotent and leaves the SQLite file untouched.
 
 Use the repository’s [Deploy to Cloudflare button](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge) for the browser-based flow, or run `npm run setup:cloudflare` for the complete guided setup.
 
-Until the public repository URL exists, the guided setup command is the equivalent one-command deployment path.
+The browser flow reads `.dev.vars.example` for secret placeholders and `package.json` for field descriptions. Required Nudge login/session/VAPID values must be supplied; Gemini and Second Brain credentials may be left blank. Cloudflare encrypts secret values and provisions the declared D1 database automatically.
 
 ## Updating
 
