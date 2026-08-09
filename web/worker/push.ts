@@ -18,7 +18,7 @@ export interface PushResult {
 
 function configure(env: Env) {
   webpush.setVapidDetails(
-    env.VAPID_SUBJECT || "https://nudge.junioralive.in",
+    env.VAPID_SUBJECT || "https://github.com/junioralive/nudge",
     env.VAPID_PUBLIC_KEY,
     env.VAPID_PRIVATE_KEY,
   );

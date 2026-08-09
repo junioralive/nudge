@@ -120,7 +120,7 @@ Optional secrets:
 - `SECOND_BRAIN_URL` — connects your deployed Second Brain
 - `SECOND_BRAIN_TOKEN` — enables memory capture and recall
 
-Configuration variables include `APP_TIMEZONE`, `NUDGE_PROFILE_NAME`, and `VAPID_SUBJECT`. The app uses one maintained Gemini Live model. Assistant gender, voice, timezone, and display name are changed inside Nudge Settings.
+Initial `APP_TIMEZONE` and `NUDGE_PROFILE_NAME` values can be supplied during one-click setup and changed later inside Nudge Settings. `VAPID_SUBJECT` is optional and the guided CLI sets it from your deployment URL. Deployments use Wrangler's `keep_vars` protection, so GitHub pushes preserve dashboard-managed variables instead of restoring repository defaults. Encrypted secrets are also preserved by Cloudflare.
 
 ## Optional integrations
 

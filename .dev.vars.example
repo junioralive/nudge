@@ -1,6 +1,10 @@
 # Required — choose the password/token used to unlock Nudge.
 NUDGE_AUTH_KEY=
 
+# Optional — initial profile defaults. Both can be changed later in Nudge Settings.
+NUDGE_PROFILE_NAME=
+APP_TIMEZONE=
+
 # SESSION_SECRET and VAPID keys are generated automatically on first deploy.
 
 # Optional — leave blank to disable Gemini voice.

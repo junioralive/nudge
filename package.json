@@ -23,7 +23,10 @@
         "description": "Required. Enter the password/token you will use to unlock Nudge. It is not auto-generated because you must know it to sign in."
       },
       "NUDGE_PROFILE_NAME": {
-        "description": "Your display name inside Nudge, for example Junior."
+        "description": "Optional initial display name, for example Junior. You can change it later in Nudge Settings."
+      },
+      "APP_TIMEZONE": {
+        "description": "Optional initial IANA timezone, for example Asia/Kolkata. You can change it later in Nudge Settings."
       },
       "GEMINI_API_KEY": {
         "description": "Optional. Add a Google AI Studio API key to enable the live voice assistant. Leave blank to disable."
