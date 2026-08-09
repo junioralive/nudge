@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Brain, Check, LoaderCircle, Mic2, Settings2, UserRound, Volume2, X } from "lucide-react";
+import { BellRing, Brain, Check, LoaderCircle, Mic2, UserRound, Volume2, X } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
@@ -121,8 +121,7 @@ export default function SettingsView({ profile, capabilities, onSave, onClose })
   return <section className="settings-view" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
     <div className="settings-dialog">
       <header className="settings-head">
-        <span className="settings-head-icon"><Settings2 size={20} /></span>
-        <div><h2 id="settings-title">Settings</h2><p>Manage your profile and Nudge preferences.</p></div>
+        <h2 id="settings-title">Settings</h2>
         <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings"><X size={18} /></button>
       </header>
 
