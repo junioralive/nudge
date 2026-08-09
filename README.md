@@ -82,6 +82,17 @@ It then creates or reuses D1, generates session and VAPID secrets, applies migra
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
+#### Cloudflare Workers Builds
+
+For a Git-connected deployment, keep the repository root as `/` and set these two commands in **Settings → Builds → Build configurations**:
+
+```text
+Build command:  npm run cloudflare:build
+Deploy command: npm run cloudflare:deploy
+```
+
+The Worker configuration is in `web/wrangler.jsonc`. Do not use `npx wrangler deploy` from the repository root: Wrangler will see the npm workspace and stop before it reaches the Worker project. The deploy script enters the `web` workspace after the Vite build, which also supplies the generated asset directory.
+
 ## Local development
 
 Requirements: Node.js 22+, npm, and a Cloudflare account for deployment.

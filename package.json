@@ -11,7 +11,9 @@
     "build": "npm run build -w web",
     "typecheck": "npm run typecheck -w web",
     "test": "npm run test -w web",
-    "deploy": "npm run deploy -w web",
+    "deploy": "npm run build -w web && npm exec --workspace web -- wrangler deploy",
+    "cloudflare:build": "npm run build -w web",
+    "cloudflare:deploy": "npm run deploy",
     "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
     "migrate:sqlite": "node scripts/migrate-sqlite.mjs"
   }
