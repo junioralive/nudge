@@ -156,7 +156,10 @@ async function main() {
   const workspaces = (await ask("Workspaces (comma-separated)", "Personal, Work, Startup"))
     .split(",").map((value) => value.trim()).filter(Boolean).slice(0, 50);
   const enableGemini = await confirm("Enable Gemini voice assistant?", false);
+  const geminiKey = enableGemini ? await askSecret("Gemini API key") : "";
   const enableSecondBrain = await confirm("Enable Second Brain memories?", false);
+  const secondBrainUrl = enableSecondBrain ? await askRequired("Second Brain URL") : "";
+  const secondBrainToken = enableSecondBrain ? await askSecret("Second Brain token") : "";
 
   config.name = workerName;
   config.workers_dev = true;
@@ -167,7 +170,7 @@ async function main() {
     NUDGE_ASSISTANT_GENDER: assistantGender,
     GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
     ...(enableGemini ? {} : {}),
-    ...(enableSecondBrain ? { SECOND_BRAIN_URL: await ask("Second Brain URL", "") } : {}),
+    ...(enableSecondBrain ? { SECOND_BRAIN_URL: secondBrainUrl } : {}),
   };
   await ensureDatabase(workerName, config);
   updateWrangler(config);
@@ -179,8 +182,8 @@ async function main() {
   run("npx", ["wrangler", "secret", "put", "SESSION_SECRET"], { cwd: webRoot, input: `${randomBytes(48).toString("base64url")}\n` });
   run("npx", ["wrangler", "secret", "put", "VAPID_PUBLIC_KEY"], { cwd: webRoot, input: `${vapid.publicKey}\n` });
   run("npx", ["wrangler", "secret", "put", "VAPID_PRIVATE_KEY"], { cwd: webRoot, input: `${vapid.privateKey}\n` });
-  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY"], { cwd: webRoot });
-  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN"], { cwd: webRoot });
+  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY"], { cwd: webRoot, input: `${geminiKey}\n` });
+  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN"], { cwd: webRoot, input: `${secondBrainToken}\n` });
 
   console.log("Applying D1 migrations…");
   run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote"], { cwd: webRoot });

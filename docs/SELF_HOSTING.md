@@ -10,7 +10,7 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks for the Worker name, display name, login password/token, timezone, assistant gender (`she` or `he`), optional custom domain, initial workspaces, and optional Gemini/Second Brain integrations.
+The setup wizard asks for the Worker name, display name, login password/token, timezone, assistant gender (`she` or `he`), optional custom domain, initial workspaces, and optional Gemini/Second Brain credentials. All optional credentials are entered during this same onboarding flow.
 
 It provisions or reuses D1, installs your login password, generates session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. Keep your login password in a password manager; it is never written to the repository.
 

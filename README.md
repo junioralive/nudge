@@ -74,7 +74,7 @@ npm run setup:cloudflare
 The setup wizard asks for:
 
 - Worker name and optional custom domain
-- Your display name, login password/token, timezone, assistant gender (`she` or `he`), and initial workspaces
+- Your display name, login password/token, timezone, assistant gender (`she` or `he`), initial workspaces, and optional Gemini/Second Brain credentials
 - Whether Gemini should be enabled
 - Whether Second Brain should be enabled and its URL
 
