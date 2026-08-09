@@ -329,7 +329,7 @@ function NudgeApp({ onLogout }) {
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view === "memories" ? <Suspense fallback={<div className="empty">Opening Second Brain…</div>}><MemoriesView activeWorkspace={activeWorkspace} /></Suspense>
-          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} />
+          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
               <button className={`add-toggle-btn ${showAddForm ? "open" : ""}`} onClick={() => setShowAddForm((state) => !state)} aria-label="Toggle add task">

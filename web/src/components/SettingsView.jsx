@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Brain, Check, LoaderCircle, Mic2, Settings2, UserRound, Volume2 } from "lucide-react";
+import { BellRing, Brain, Check, LoaderCircle, Mic2, Settings2, UserRound, Volume2, X } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
@@ -10,7 +10,7 @@ function availableTimezones(current) {
   return [...new Set([current, ...defaults, ...supported].filter(Boolean))];
 }
 
-export default function SettingsView({ profile, capabilities, onSave }) {
+export default function SettingsView({ profile, capabilities, onSave, onClose }) {
   const [draft, setDraft] = useState(profile);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("nudge-sound") !== "off");
   const [status, setStatus] = useState("");
@@ -22,6 +22,11 @@ export default function SettingsView({ profile, capabilities, onSave }) {
 
   useEffect(() => setDraft(profile), [profile]);
   useEffect(() => () => previewRef.current?.(), []);
+  useEffect(() => {
+    const closeOnEscape = (event) => event.key === "Escape" && onClose?.();
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
 
   function update(key, value) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -113,18 +118,20 @@ export default function SettingsView({ profile, capabilities, onSave }) {
     <button type="button" onClick={save} disabled={saving || !draft.name.trim()}>{saving ? "Saving…" : "Save changes"}</button>
   </footer>;
 
-  return <section className="settings-view">
-    <header className="settings-head">
-      <span className="settings-head-icon"><Settings2 size={20} /></span>
-      <div><h2>Settings</h2><p>Manage your profile and Nudge preferences.</p></div>
-    </header>
+  return <section className="settings-view" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+    <div className="settings-dialog">
+      <header className="settings-head">
+        <span className="settings-head-icon"><Settings2 size={20} /></span>
+        <div><h2 id="settings-title">Settings</h2><p>Manage your profile and Nudge preferences.</p></div>
+        <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings"><X size={18} /></button>
+      </header>
 
-    <div className="settings-layout">
-      <nav className="settings-menu" aria-label="Settings sections">
-        {menu.map(([id, Icon, label]) => <button type="button" key={id} className={section === id ? "active" : ""} onClick={() => { setSection(id); setStatus(""); }}><Icon size={16} /><span>{label}</span></button>)}
-      </nav>
+      <div className="settings-layout">
+        <nav className="settings-menu" aria-label="Settings sections">
+          {menu.map(([id, Icon, label]) => <button type="button" key={id} className={section === id ? "active" : ""} onClick={() => { setSection(id); setStatus(""); }}><Icon size={16} /><span>{label}</span></button>)}
+        </nav>
 
-      <div className="settings-panel">
+        <div className="settings-panel">
         {section === "profile" && <article className="settings-card">
           <div className="settings-card-title"><UserRound size={18} /><div><h3>Profile</h3><p>How Nudge knows and addresses you.</p></div></div>
           <div className="settings-form">
@@ -167,6 +174,7 @@ export default function SettingsView({ profile, capabilities, onSave }) {
             <div className="capability-row"><span><strong>Push notifications</strong><small>Due-time reminders on registered devices</small></span><b className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
           </div>
         </article>}
+        </div>
       </div>
     </div>
   </section>;
