@@ -1,4 +1,4 @@
-import { Home, Bell, CalendarDays, Plus, Check, Brain, Mail } from "lucide-react";
+import { Home, Bell, CalendarDays, Plus, Check, Brain, Mail, Mic } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
