@@ -2,15 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BellRing, Brain, Check, LoaderCircle, Mic2, Settings2, UserRound, Volume2 } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
-
-const VOICES = [
-  ["Zephyr", "Bright"],
-  ["Kore", "Firm"],
-  ["Puck", "Upbeat"],
-  ["Aoede", "Breezy"],
-  ["Achird", "Friendly"],
-  ["Sulafat", "Warm"],
-];
+import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
 
 function availableTimezones(current) {
   const defaults = ["UTC", "Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Singapore", "Australia/Sydney"];
@@ -148,7 +140,7 @@ export default function SettingsView({ profile, capabilities, onSave }) {
             <fieldset className="settings-field"><legend>Assistant gender</legend><div className="settings-segmented">
               {["she", "he"].map((gender) => <button type="button" key={gender} className={draft.assistantGender === gender ? "active" : ""} onClick={() => update("assistantGender", gender)}>{gender === "she" ? "She / her" : "He / him"}</button>)}
             </div></fieldset>
-            <label className="settings-field"><span>Voice</span><select value={draft.assistantVoice} onChange={(event) => update("assistantVoice", event.target.value)}>{VOICES.map(([voice, character]) => <option value={voice} key={voice}>{voice} · {character}</option>)}</select></label>
+            <label className="settings-field"><span>Voice</span><select value={draft.assistantVoice} onChange={(event) => update("assistantVoice", event.target.value)}>{ASSISTANT_VOICES.map(({ name, tone }) => <option value={name} key={name}>{name} · {tone}</option>)}</select></label>
             <button type="button" className="voice-preview-btn" onClick={previewVoice} disabled={!capabilities.gemini || previewing}>
               {previewing ? <LoaderCircle className="spin" size={15} /> : <Volume2 size={15} />}
               {previewing ? "Playing preview…" : `Preview ${draft.assistantVoice}`}

@@ -16,11 +16,12 @@ import { captureMemory, forgetMemory, listRecentMemories, recallMemories, Second
 import { disableDevice, getActiveDevice, getPushStatus, registerSubscription, sendTestPush } from "./push";
 import { runTool, toolDeclarations } from "./tools";
 import type { AppBindings, Env } from "./types";
+import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview";
-const ASSISTANT_VOICES = new Set(["Zephyr", "Kore", "Puck", "Aoede", "Achird", "Sulafat"]);
+const ASSISTANT_VOICES = new Set(ASSISTANT_VOICE_NAMES);
 
 app.use("/api/*", async (c, next) => {
   await next();
