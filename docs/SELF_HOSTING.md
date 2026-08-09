@@ -19,7 +19,7 @@ If no custom domain is chosen, use the `workers.dev` URL printed at the end. If 
 ## After deployment
 
 1. Open the printed URL.
-2. Sign in with the generated login key.
+2. Sign in with the login password/token you chose.
 3. Open Notifications.
 4. Install Nudge as a PWA where desired.
 5. Click Enable notifications on every device.
@@ -41,7 +41,7 @@ The import is idempotent and leaves the SQLite file untouched.
 
 Use the repository’s [Deploy to Cloudflare button](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge) for the browser-based flow, or run `npm run setup:cloudflare` for the complete guided setup.
 
-The browser flow reads `.dev.vars.example` for secret placeholders and `package.json` for field descriptions. Required Nudge login/session/VAPID values must be supplied; Gemini and Second Brain credentials may be left blank. Cloudflare encrypts secret values and provisions the declared D1 database automatically.
+The browser flow reads `.dev.vars.example` for secret placeholders and `package.json` for field descriptions. You supply only the Nudge login password/token; session and VAPID secrets are generated automatically. Gemini and Second Brain credentials may be left blank. Cloudflare encrypts secret values and provisions the declared D1 database automatically.
 
 ## Updating
 

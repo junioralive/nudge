@@ -1,12 +1,7 @@
 # Required — choose the password/token used to unlock Nudge.
-NUDGE_AUTH_KEY=choose-your-nudge-login-password
+NUDGE_AUTH_KEY=
 
-# Required — generate with: openssl rand -base64 48
-SESSION_SECRET=generate-a-random-session-secret
-
-# Required — generate together with: npx web-push generate-vapid-keys
-VAPID_PUBLIC_KEY=paste-your-vapid-public-key
-VAPID_PRIVATE_KEY=paste-your-vapid-private-key
+# SESSION_SECRET and VAPID keys are generated automatically on first deploy.
 
 # Optional — leave blank to disable Gemini voice.
 GEMINI_API_KEY=

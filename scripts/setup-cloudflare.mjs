@@ -113,7 +113,12 @@ function generateVapidKeys() {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const publicJwk = publicKey.export({ format: "jwk" });
   const privateJwk = privateKey.export({ format: "jwk" });
-  return { publicKey: publicJwk.x, privateKey: privateJwk.d };
+  const publicBytes = Buffer.concat([
+    Buffer.from([4]),
+    Buffer.from(publicJwk.x, "base64url"),
+    Buffer.from(publicJwk.y, "base64url"),
+  ]);
+  return { publicKey: publicBytes.toString("base64url"), privateKey: privateJwk.d };
 }
 
 function sqlString(value) {

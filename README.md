@@ -111,8 +111,8 @@ For local secrets, copy `web/.dev.vars.example` to `web/.dev.vars` and use devel
 Required Worker secrets:
 
 - `NUDGE_AUTH_KEY` — the single-user login key
-- `SESSION_SECRET` — signs authenticated sessions
-- `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — Web Push delivery
+- `SESSION_SECRET` — generated automatically and used to sign authenticated sessions
+- `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — generated automatically for Web Push delivery
 
 Optional secrets:
 
