@@ -1,10 +1,18 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 
+function localDateTimeValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
 export default function TaskEditor({ task, workspaces, onClose, onSave }) {
   const [title, setTitle] = useState(task.text || "");
   const [details, setDetails] = useState(task.details || "");
-  const [due, setDue] = useState(task.due_at ? task.due_at.slice(0, 16) : "");
+  const [due, setDue] = useState(localDateTimeValue(task.due_at));
   const [workspace, setWorkspace] = useState(task.workspace || "Personal");
   const [interval, setInterval] = useState(task.follow_up_interval_minutes || 0);
   const [max, setMax] = useState(task.follow_up_max_count || 0);

@@ -60,7 +60,20 @@ export async function updateTask(
          notification_body = CASE WHEN ? THEN ? ELSE notification_body END,
          notification_claimed_at = NULL, notification_attempts = CASE WHEN ? THEN 0 ELSE notification_attempts END,
          next_retry_at = NULL, next_notification_at = CASE WHEN ? THEN NULL ELSE next_notification_at END WHERE id = ?`,
-    ).bind(text, details, dueAt, workspace, followInterval, followMax, resetNotification ? 1 : 0, text, resetNotification ? 1 : 0, resetNotification ? 1 : 0, id),
+    ).bind(
+      text,
+      details,
+      dueAt,
+      workspace,
+      followInterval,
+      followMax,
+      resetNotification ? 1 : 0,
+      resetNotification ? 1 : 0,
+      text,
+      resetNotification ? 1 : 0,
+      resetNotification ? 1 : 0,
+      id,
+    ),
     ...(resetNotification ? [env.DB.prepare("DELETE FROM task_notification_deliveries WHERE task_id = ?").bind(id)] : []),
   ]);
   const task = await getTask(env, id);
