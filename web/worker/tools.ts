@@ -1,9 +1,80 @@
 import { Type, type FunctionDeclaration } from "@google/genai";
 import { addTask, completeTask, deleteTask, isTodayInTimezone, listTasks, publicTask, updateTask } from "./data";
 import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain";
+import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
 
 export const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "list_email_accounts",
+    description: "List the user's connected email accounts and send availability. Use only when the user explicitly asks about email or an account must be selected for a requested email action.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "list_email_inbox",
+    description: "List header-only inbox summaries across all or selected email accounts. Returns sender, subject, date, read state, and an opaque message reference without reading message bodies. Use only for an explicit inbox or email briefing request.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        accountIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+        limit: { type: Type.NUMBER },
+      },
+    },
+  },
+  {
+    name: "search_email",
+    description: "Search connected mailboxes for header-only email summaries. Use only when the user explicitly asks about email. This does not read message bodies or modify messages.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING },
+        accountIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+        limit: { type: Type.NUMBER },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "read_email",
+    description: "Read one email body using the opaque ref returned by an email list or search. Call only when the user explicitly asks to open, read, explain, or summarize that specific message. Never fetch bodies for a general inbox briefing.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { ref: { type: Type.STRING } },
+      required: ["ref"],
+    },
+  },
+  {
+    name: "prepare_email_draft",
+    description: "Prepare a proposed new email or reply for visible user review. This does not create or send a mailbox draft. Use only after the user explicitly asks to write or reply. The user must review the proposal in Nudge before it can be saved or sent.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        accountId: { type: Type.STRING },
+        replyToRef: { type: Type.STRING },
+        to: { type: Type.STRING },
+        cc: { type: Type.STRING },
+        subject: { type: Type.STRING },
+        text: { type: Type.STRING },
+        replyAll: { type: Type.BOOLEAN },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "create_task_from_email",
+    description: "Create a Nudge task linked to an email using its opaque ref. Use only when the user explicitly asks to turn that email into a task. Preserve the user's requested task details and due time.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        ref: { type: Type.STRING },
+        title: { type: Type.STRING },
+        details: { type: Type.STRING },
+        due_at: { type: Type.STRING },
+        workspace: { type: Type.STRING },
+      },
+      required: ["ref", "title"],
+    },
+  },
   {
     name: "list_tasks",
     description:
@@ -138,6 +209,81 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "list_email_accounts") {
+    try {
+      return { accounts: safeEmailAccounts(await callEmailTool(env, "email_list_accounts")) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Email service unavailable" };
+    }
+  }
+  if (name === "list_email_inbox") {
+    try {
+      const result = await callEmailTool(env, "email_list_all_inbox_messages", {
+        ...(Array.isArray(args.accountIds) && args.accountIds.length ? { accountIds: args.accountIds.map(String).slice(0, 20) } : {}),
+        limit: Math.min(Math.max(Number(args.limit) || 10, 1), 25),
+        sortOrder: "newest",
+      });
+      return safeEmailList(env, result, true);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Email service unavailable" };
+    }
+  }
+  if (name === "search_email") {
+    if (!args.query?.trim()) return { ok: false, error: "query is required" };
+    try {
+      return await callEmailTool(env, "email_search_all_accounts", {
+        text: String(args.query).trim().slice(0, 300),
+        folder: "INBOX",
+        ...(Array.isArray(args.accountIds) && args.accountIds.length ? { accountIds: args.accountIds.map(String).slice(0, 20) } : {}),
+        limit: Math.min(Math.max(Number(args.limit) || 10, 1), 25),
+        sortOrder: "newest",
+      }).then((result) => safeEmailList(env, result, true));
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Email service unavailable" };
+    }
+  }
+  if (name === "read_email") {
+    if (!args.ref) return { ok: false, error: "ref is required" };
+    try {
+      const ref = await readEmailReference(env, String(args.ref));
+      return { ok: true, message: safeEmailMessage(await callEmailTool(env, "email_get_message", { ...ref }), true) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Email service unavailable" };
+    }
+  }
+  if (name === "prepare_email_draft") {
+    if (!args.text?.trim()) return { ok: false, error: "text is required" };
+    return {
+      ok: true,
+      requires_confirmation: true,
+      draft: {
+        accountId: String(args.accountId || "").slice(0, 160),
+        replyToRef: String(args.replyToRef || "").slice(0, 8_000),
+        to: String(args.to || "").slice(0, 1_000),
+        cc: String(args.cc || "").slice(0, 1_000),
+        subject: String(args.subject || "").slice(0, 1_000),
+        text: String(args.text).slice(0, 50_000),
+        replyAll: Boolean(args.replyAll),
+      },
+    };
+  }
+  if (name === "create_task_from_email") {
+    if (!args.ref || !args.title?.trim()) return { ok: false, error: "ref and title are required" };
+    try {
+      const ref = await readEmailReference(env, String(args.ref));
+      const task = await addTask(env, {
+        text: String(args.title).trim().slice(0, 200),
+        details: String(args.details || "").slice(0, 10_000),
+        due_at: normalizeToolDue(args.due_at) || null,
+        workspace: String(args.workspace || "Personal").slice(0, 80),
+      });
+      await env.DB.prepare("INSERT INTO email_task_links (task_id, account_id, folder, message_uid, message_id) VALUES (?, ?, ?, ?, ?)")
+        .bind(task.id, ref.accountId, ref.folder, ref.uid, ref.messageId || null).run();
+      return { ok: true, task: compactTask(task) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not create email task" };
+    }
+  }
   if (name === "list_tasks") {
     const completed = args.filter === "completed";
     let rows = (await listTasks(env)).filter((task) => completed ? Boolean(task.done_at) : !task.done_at);

@@ -10,16 +10,18 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks for the Worker name, display name, login password/token, timezone, assistant gender (`she` or `he`), optional custom domain, initial workspaces, and optional Gemini/Second Brain credentials. All optional credentials are entered during this same onboarding flow.
+The setup wizard asks for the Worker name, profile name, timezone, assistant pronouns, optional custom domain, initial workspaces, and optional Gemini, Second Brain, and Email MCP integrations.
 
-It provisions or reuses D1, installs your login password, generates session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. Keep your login password in a password manager; it is never written to the repository.
+Email setup requires a Cloudflare Access service token created for the separately deployed Email MCP server. See [Email assistant](EMAIL.md).
+
+It provisions or reuses D1, generates the login/session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. The generated login key is saved locally to `NUDGE_LOGIN_KEY.txt`; copy it into your password manager and do not commit it.
 
 If no custom domain is chosen, use the `workers.dev` URL printed at the end. If a custom domain is chosen, Cloudflare must have the domain in the same account and DNS must be available for the custom Worker domain.
 
 ## After deployment
 
 1. Open the printed URL.
-2. Sign in with the login password/token you chose.
+2. Sign in with the generated login key.
 3. Open Notifications.
 4. Install Nudge as a PWA where desired.
 5. Click Enable notifications on every device.
@@ -39,9 +41,13 @@ The import is idempotent and leaves the SQLite file untouched.
 
 ## One-click deployment
 
-Use the repository’s [Deploy to Cloudflare button](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge) for the browser-based flow, or run `npm run setup:cloudflare` for the complete guided setup.
+Cloudflare’s Deploy to Workers button requires a public GitHub repository URL. Once Nudge is published, use:
 
-The browser flow reads `.dev.vars.example` for secret placeholders and `package.json` for field descriptions. You supply only the Nudge login password/token; session and VAPID secrets are generated automatically. Gemini and Second Brain credentials may be left blank. Cloudflare encrypts secret values and provisions the declared D1 database automatically.
+```text
+https://deploy.workers.cloudflare.com/?url=https://github.com/YOUR_OWNER/nudge
+```
+
+Until the public repository URL exists, the guided setup command is the equivalent one-command deployment path.
 
 ## Updating
 

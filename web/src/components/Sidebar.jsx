@@ -1,4 +1,4 @@
-import { Home, Bell, CalendarDays, Plus, Check, Mic, Brain } from "lucide-react";
+import { Home, Bell, CalendarDays, Plus, Check, Brain, Mail } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
@@ -62,6 +62,9 @@ export default function Sidebar({
         </button>
         {capabilities.secondBrain && <button className={view === "memories" ? "active" : ""} onClick={() => onNavigate("memories")}>
           <Brain size={16} /> Memories
+        </button>}
+        {capabilities.email && <button className={view === "email" ? "active" : ""} onClick={() => onNavigate("email")}>
+          <Mail size={16} /> Email
         </button>}
       </nav>
 

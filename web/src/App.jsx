@@ -43,9 +43,11 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import TaskEditor from "./components/TaskEditor.jsx";
 import SettingsView from "./components/SettingsView.jsx";
 import WorkspaceDialog from "./components/WorkspaceDialog.jsx";
+import EmailDraftDialog from "./components/EmailDraftDialog.jsx";
 
 const VoicePanel = lazy(() => import("./components/VoicePanel.jsx"));
 const MemoriesView = lazy(() => import("./components/MemoriesView.jsx"));
+const EmailView = lazy(() => import("./components/EmailView.jsx"));
 
 function isToday(dueAt) {
   if (!dueAt) return false;
@@ -90,7 +92,7 @@ export default function App() {
 function NudgeApp({ onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [pushStatus, setPushStatus] = useState({ state: "loading", detail: "Checking this device…" });
-  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true });
+  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false });
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("today");
   const [sortByDue, setSortByDue] = useState(true);
@@ -105,6 +107,7 @@ function NudgeApp({ onLogout }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [editingTask, setEditingTask] = useState(null);
+  const [emailDraft, setEmailDraft] = useState(null);
   const addInputRef = useRef(null);
 
   async function refresh() {
@@ -145,6 +148,12 @@ function NudgeApp({ onLogout }) {
         setLoadError(error.message);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const openDraft = (event) => event.detail && setEmailDraft(event.detail);
+    window.addEventListener("nudge:email-draft", openDraft);
+    return () => window.removeEventListener("nudge:email-draft", openDraft);
   }, []);
 
   useEffect(() => {
@@ -345,6 +354,7 @@ function NudgeApp({ onLogout }) {
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view === "memories" ? <Suspense fallback={<div className="empty">Opening Second Brain…</div>}><MemoriesView activeWorkspace={activeWorkspace} /></Suspense>
+          : view === "email" ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} /></Suspense>
           : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
@@ -362,6 +372,7 @@ function NudgeApp({ onLogout }) {
       {voiceOpen && <Suspense fallback={null}><VoicePanel onClose={() => setVoiceOpen(false)} onTaskChange={refresh} activeWorkspace={activeWorkspace} /></Suspense>}
       {editingTask && <TaskEditor task={editingTask} workspaces={workspaces} onClose={() => setEditingTask(null)} onSave={async (values) => { await handleEdit(editingTask, values); setEditingTask(null); }} />}
       {workspaceDialog && <WorkspaceDialog dialog={workspaceDialog} currentColor={workspaceColors[workspaceDialog.workspace]} onClose={() => setWorkspaceDialog(null)} onConfirm={handleWorkspaceDialogConfirm} />}
+      {emailDraft && <EmailDraftDialog initial={emailDraft} onClose={() => setEmailDraft(null)} />}
     </div>
   );
 }

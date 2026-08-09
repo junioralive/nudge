@@ -77,10 +77,13 @@ export async function completeTask(env: Env, id: number): Promise<TaskRow | null
 }
 
 export async function deleteTask(env: Env, id: number): Promise<boolean> {
-  const [, result] = await env.DB.batch([
+  const statements = [
     env.DB.prepare("DELETE FROM task_notification_deliveries WHERE task_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM email_task_links WHERE task_id = ?").bind(id),
     env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(id),
-  ]);
+  ];
+  const results = await env.DB.batch(statements);
+  const result = results.at(-1)!;
   return Boolean(result.meta.changes);
 }
 

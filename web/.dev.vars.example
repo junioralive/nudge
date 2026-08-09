@@ -1,15 +1,11 @@
-# Required — choose the password/token used to unlock Nudge.
-NUDGE_AUTH_KEY=
-
-# Optional — initial profile defaults. Both can be changed later in Nudge Settings.
-NUDGE_PROFILE_NAME=
-APP_TIMEZONE=
-
-# SESSION_SECRET and VAPID keys are generated automatically on first deploy.
-
-# Optional — leave blank to disable Gemini voice.
-GEMINI_API_KEY=
-
-# Optional — leave blank to disable Second Brain memory.
-SECOND_BRAIN_URL=
-SECOND_BRAIN_TOKEN=
+NUDGE_AUTH_KEY=replace-with-a-strong-app-key
+SESSION_SECRET=replace-with-a-random-session-signing-secret
+# Optional integrations:
+# SECOND_BRAIN_TOKEN=replace-with-your-rotated-second-brain-token
+# GEMINI_API_KEY=replace-with-your-gemini-api-key
+# EMAIL_ACCESS_CLIENT_ID=replace-with-your-cloudflare-access-service-token-client-id
+# EMAIL_ACCESS_CLIENT_SECRET=replace-with-your-cloudflare-access-service-token-client-secret
+# EMAIL_ACTION_SIGNING_SECRET=replace-with-a-shared-random-secret
+# NUDGE_ASSISTANT_GENDER=she
+VAPID_PUBLIC_KEY=replace-with-your-vapid-public-key
+VAPID_PRIVATE_KEY=replace-with-your-vapid-private-key

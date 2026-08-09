@@ -11,11 +11,14 @@ export interface Env {
   SECOND_BRAIN_URL: string;
   SECOND_BRAIN_TOKEN?: string;
   GEMINI_API_KEY?: string;
-  NUDGE_PROFILE_NAME?: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT?: string;
   APP_TIMEZONE?: string;
+  EMAIL_MCP_URL?: string;
+  EMAIL_ACCESS_CLIENT_ID?: string;
+  EMAIL_ACCESS_CLIENT_SECRET?: string;
+  EMAIL_ACTION_SIGNING_SECRET?: string;
 }
 
 export interface TaskRow {

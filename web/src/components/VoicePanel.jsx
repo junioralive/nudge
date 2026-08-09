@@ -91,8 +91,11 @@ export default function VoicePanel({ onClose, onTaskChange, activeWorkspace = "P
           }
         },
         onToolResult: (name, _args, result) => {
-          if (["add_task", "update_task", "complete_task", "delete_task"].includes(name)) {
+          if (["add_task", "update_task", "complete_task", "delete_task", "create_task_from_email"].includes(name)) {
             onTaskChange?.();
+          }
+          if (name === "prepare_email_draft" && result?.requires_confirmation && result?.draft) {
+            window.dispatchEvent(new CustomEvent("nudge:email-draft", { detail: result.draft }));
           }
           setTranscripts((prev) => [...prev, { role: "system", text: describeTool(name, result), final: true }]);
         },
@@ -185,6 +188,11 @@ export default function VoicePanel({ onClose, onTaskChange, activeWorkspace = "P
     if (name === "remember_memory") return `Memory was not saved${result?.error ? `: ${result.error}` : ""}`;
     if (name === "recall_memory") return `Recalled ${result?.results?.length ?? 0} memory item(s)`;
     if (name === "list_recent_memories") return "Checked recent memories";
+    if (name === "list_email_accounts") return `Checked ${result?.accounts?.length ?? 0} email account(s)`;
+    if (name === "list_email_inbox" || name === "search_email") return `Checked ${result?.messages?.length ?? 0} email header(s)`;
+    if (name === "read_email") return result?.ok ? "Read the selected email" : "Could not read that email";
+    if (name === "prepare_email_draft") return result?.ok ? "Draft ready for your review" : "Could not prepare the draft";
+    if (name === "create_task_from_email") return result?.ok ? "Created a task from email" : "Could not create the task";
     return "";
   }
 

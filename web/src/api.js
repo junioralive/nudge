@@ -24,6 +24,39 @@ export function getSession() {
 }
 export function fetchCapabilities() { return apiFetch("/api/capabilities"); }
 
+export function fetchEmailStatus() { return apiFetch("/api/email/status"); }
+export function fetchEmailAccounts() { return apiFetch("/api/email/accounts"); }
+export function fetchEmailInbox(accountId = "", limit = 20) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (accountId) params.set("accountId", accountId);
+  return apiFetch(`/api/email/inbox?${params}`);
+}
+export function searchEmail(query, accountIds = [], limit = 20) {
+  return apiFetch("/api/email/search", { method: "POST", body: JSON.stringify({ query, accountIds, limit }) });
+}
+export function fetchEmailMessage(ref) {
+  return apiFetch("/api/email/message", { method: "POST", body: JSON.stringify({ ref }) });
+}
+export function createEmailDraft(values) {
+  return apiFetch("/api/email/drafts", { method: "POST", body: JSON.stringify(values) });
+}
+export function sendEmailDraft(approval) {
+  return apiFetch("/api/email/drafts/send", {
+    method: "POST",
+    headers: { "X-Confirm-Send": "true" },
+    body: JSON.stringify({ approval }),
+  });
+}
+export function updateEmailMessageState(state, approval) {
+  return apiFetch("/api/email/message-state", { method: "PATCH", body: JSON.stringify({ state, approval }) });
+}
+export function archiveEmail(approval) {
+  return apiFetch("/api/email/archive", { method: "POST", body: JSON.stringify({ approval }) });
+}
+export function createTaskFromEmail(values) {
+  return apiFetch("/api/tasks/from-email", { method: "POST", body: JSON.stringify(values) });
+}
+
 export function login(key) {
   return apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify({ key }) });
 }

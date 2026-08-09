@@ -14,6 +14,18 @@ import { addTask, completeTask, deleteTask, getTask, listTasks, updateTask } fro
 import { processDueReminders, retryFailedDeliveries } from "./reminders";
 import { captureMemory, forgetMemory, listRecentMemories, recallMemories, SecondBrainError } from "./secondBrain";
 import { disableDevice, getActiveDevice, getPushStatus, registerSubscription, sendTestPush } from "./push";
+import {
+  callEmailTool,
+  consumeEmailApproval,
+  createEmailApproval,
+  emailConfigured,
+  EmailMcpError,
+  readEmailReference,
+  safeEmailAccounts,
+  safeEmailError,
+  safeEmailList,
+  safeEmailMessage,
+} from "./email";
 import { runTool, toolDeclarations } from "./tools";
 import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
@@ -123,7 +135,187 @@ app.get("/api/capabilities", (c) => c.json({
   gemini: Boolean(c.env.GEMINI_API_KEY),
   secondBrain: Boolean(c.env.SECOND_BRAIN_TOKEN && c.env.SECOND_BRAIN_URL),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
+  email: emailConfigured(c.env),
 }));
+
+function emailErrorResponse(c: any, error: unknown) {
+  const status = error instanceof EmailMcpError ? error.status : 502;
+  return c.json({ error: safeEmailError(error) }, status);
+}
+
+function accountIds(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result = value.map((item) => cleanText(item, 160)).filter(Boolean).slice(0, 20);
+  return result.length ? result : undefined;
+}
+
+app.get("/api/email/status", async (c) => {
+  if (!emailConfigured(c.env)) return c.json({ configured: false, healthy: false, accountCount: 0 });
+  try {
+    const accounts = safeEmailAccounts(await callEmailTool(c.env, "email_list_accounts"));
+    return c.json({ configured: true, healthy: true, accountCount: accounts.length });
+  } catch (error) {
+    return c.json({ configured: true, healthy: false, accountCount: 0, error: safeEmailError(error) });
+  }
+});
+
+app.get("/api/email/accounts", async (c) => {
+  try {
+    return c.json({ accounts: safeEmailAccounts(await callEmailTool(c.env, "email_list_accounts")) });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.get("/api/email/inbox", async (c) => {
+  const selected = cleanText(c.req.query("accountId"), 160);
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 20, 1), 50);
+  try {
+    const result = await callEmailTool(c.env, "email_list_all_inbox_messages", {
+      ...(selected ? { accountIds: [selected] } : {}),
+      limit,
+      sortOrder: "newest",
+    });
+    return c.json(await safeEmailList(c.env, result));
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/search", async (c) => {
+  const body = await jsonBody<{ query?: string; limit?: number; accountIds?: string[] }>(c);
+  const query = cleanText(body.query, 300);
+  if (!query) return c.json({ error: "query is required" }, 400);
+  try {
+    const result = await callEmailTool(c.env, "email_search_all_accounts", {
+      text: query,
+      folder: "INBOX",
+      ...(accountIds(body.accountIds) ? { accountIds: accountIds(body.accountIds) } : {}),
+      limit: Math.min(Math.max(Number(body.limit) || 10, 1), 25),
+      sortOrder: "newest",
+    });
+    return c.json(await safeEmailList(c.env, result));
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/message", async (c) => {
+  const body = await jsonBody<{ ref?: string }>(c);
+  if (!body.ref) return c.json({ error: "ref is required" }, 400);
+  try {
+    const ref = await readEmailReference(c.env, body.ref);
+    const message = safeEmailMessage(await callEmailTool(c.env, "email_get_message", { ...ref }));
+    return c.json({ ...message, ref: body.ref });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/drafts", async (c) => {
+  const body = await jsonBody<{
+    accountId?: string;
+    to?: string | string[];
+    cc?: string | string[];
+    subject?: string;
+    text?: string;
+    replyToRef?: string;
+    replyAll?: boolean;
+  }>(c);
+  const text = cleanText(body.text, 50_000);
+  if (!text) return c.json({ error: "message is required" }, 400);
+  try {
+    const reply = body.replyToRef ? await readEmailReference(c.env, body.replyToRef) : null;
+    const selectedAccount = cleanText(body.accountId || reply?.accountId, 160);
+    if (!selectedAccount) return c.json({ error: "accountId is required" }, 400);
+    const args = {
+      accountId: selectedAccount,
+      ...(body.to ? { to: body.to } : {}),
+      ...(body.cc ? { cc: body.cc } : {}),
+      ...(body.subject !== undefined ? { subject: cleanText(body.subject, 1_000) } : {}),
+      text,
+      ...(reply ? { replyToMessage: { folder: reply.folder, uid: reply.uid, replyAll: Boolean(body.replyAll), quoteOriginal: true } } : {}),
+    };
+    const result = await callEmailTool(c.env, "email_create_message_draft", args);
+    const draft = {
+      accountId: cleanText(result.accountId, 160),
+      folder: cleanText(result.folder, 500),
+      uid: Number(result.uid),
+      messageId: cleanText(result.messageId, 1_000),
+    };
+    if (!draft.accountId || !draft.folder || !Number.isInteger(draft.uid)) throw new EmailMcpError("Email service returned an invalid draft");
+    return c.json({
+      draft,
+      sendApproval: await createEmailApproval(c.env, "send-draft", draft),
+    }, 201);
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/drafts/send", async (c) => {
+  if (c.req.header("X-Confirm-Send") !== "true") return c.json({ error: "send confirmation required" }, 409);
+  const body = await jsonBody<{ approval?: string }>(c);
+  if (!body.approval) return c.json({ error: "approval is required" }, 400);
+  try {
+    const args = await consumeEmailApproval(c.env, body.approval, "send-draft");
+    const result = await callEmailTool(c.env, "email_send_draft", {
+      accountId: cleanText(args.accountId, 160),
+      folder: cleanText(args.folder, 500),
+      uid: Number(args.uid),
+    });
+    return c.json({ sent: Array.isArray(result.accepted) && result.accepted.length > 0, accepted: result.accepted || [], rejected: result.rejected || [] });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.patch("/api/email/message-state", async (c) => {
+  const body = await jsonBody<{ approval?: string; state?: "read" | "unread" }>(c);
+  const action = body.state === "unread" ? "mark-unread" : body.state === "read" ? "mark-read" : null;
+  if (!action || !body.approval) return c.json({ error: "state and approval are required" }, 400);
+  try {
+    const args = await consumeEmailApproval(c.env, body.approval, action);
+    await callEmailTool(c.env, "email_update_message_flags", args);
+    return c.json({ updated: true, seen: action === "mark-read" });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/archive", async (c) => {
+  const body = await jsonBody<{ approval?: string }>(c);
+  if (!body.approval) return c.json({ error: "approval is required" }, 400);
+  try {
+    const args = await consumeEmailApproval(c.env, body.approval, "archive");
+    await callEmailTool(c.env, "email_archive_messages", args);
+    return c.json({ archived: true });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/tasks/from-email", async (c) => {
+  const body = await jsonBody<Record<string, unknown>>(c);
+  const refToken = cleanText(body.ref, 8_000);
+  const text = cleanText(body.text || body.title, 200);
+  if (!refToken || !text) return c.json({ error: "ref and text are required" }, 400);
+  try {
+    const ref = await readEmailReference(c.env, refToken);
+    const task = await addTask(c.env, {
+      text,
+      details: cleanText(body.details, 10_000),
+      due_at: normalizeDueAt(body.due_at),
+      workspace: cleanText(body.workspace, 80) || "Personal",
+    });
+    await c.env.DB.prepare(
+      "INSERT INTO email_task_links (task_id, account_id, folder, message_uid, message_id) VALUES (?, ?, ?, ?, ?)",
+    ).bind(task.id, ref.accountId, ref.folder, ref.uid, ref.messageId || null).run();
+    return c.json(task, 201);
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
 
 app.get("/api/tasks", async (c) => c.json(await listTasks(c.env)));
 
@@ -183,7 +375,7 @@ app.get("/api/bootstrap", async (c) => {
   const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
   return c.json({
     initialized: Boolean(profile.name),
-    name: profile.name || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior",
+    name: profile.name || "Junior",
     timezone: profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata",
     assistant_gender: profile.assistant_gender === "he" ? "he" : "she",
     assistant_voice: ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr",
@@ -196,7 +388,7 @@ app.post("/api/bootstrap", async (c) => {
   const existing = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first();
   if (existing) return c.json({ initialized: true, imported: false });
   const body = await jsonBody<{ name?: string; workspaces?: string[] }>(c);
-  const name = cleanText(body.name, 80) || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
+  const name = cleanText(body.name, 80) || "Junior";
   const workspaces = Array.isArray(body.workspaces)
     ? body.workspaces.map((value) => cleanText(value, 80)).filter(Boolean).slice(0, 50)
     : [];
@@ -376,7 +568,9 @@ function voiceSystemInstruction(name: string, gender: string): string {
 
 Tasks are exact operational state. Always use task tools instead of guessing. Call list_tasks before updating, completing, or deleting unless the task ID came from this conversation. Routine task state is not a memory. When creating a task, use a concise title and put the user's complete explanation, constraints, and context in details. Never shorten away meaningful information. Completed tasks stay in task history, but query them only when the user explicitly asks what they finished, completed counts, or past task history. Do not include completed tasks in normal open-task answers.
 
-Second Brain is durable personal memory. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.`;
+Second Brain is durable personal memory. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.
+
+Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Second Brain unless the user explicitly asks to remember a specific durable fact from it.`;
 }
 
 app.post("/api/voice-token", async (c) => {
@@ -389,7 +583,7 @@ app.post("/api/voice-token", async (c) => {
   const model = GEMINI_LIVE_MODEL;
   const settings = await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string }>();
   const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
-  const profileName = profile.name?.trim() || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
+  const profileName = profile.name?.trim() || "Junior";
   const assistantGender = profile.assistant_gender === "he" ? "he" : "she";
   const assistantVoice = ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr";
   const timezone = profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata";

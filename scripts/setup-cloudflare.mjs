@@ -8,7 +8,7 @@ import { stdin as input, stdout as output } from "node:process";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(projectRoot, "web");
 const wranglerPath = path.join(webRoot, "wrangler.jsonc");
-let rl = createInterface({ input, output });
+const rl = createInterface({ input, output });
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -41,40 +41,6 @@ async function askRequired(label) {
     if (value) return value;
     console.log("This value is required.");
   }
-}
-
-async function askSecret(label) {
-  if (!input.isTTY || typeof input.setRawMode !== "function") return askRequired(label);
-  rl.close();
-  output.write(`${label}: `);
-  input.setRawMode(true);
-  input.resume();
-  return new Promise((resolve, reject) => {
-    let value = "";
-    const onData = (chunk) => {
-      for (const char of String(chunk)) {
-        if (char === "\u0003") {
-          cleanup();
-          reject(new Error("Setup cancelled"));
-          return;
-        }
-        if (char === "\r" || char === "\n") {
-          cleanup();
-          output.write("\n");
-          resolve(value);
-          return;
-        }
-        if (char === "\u007f") value = value.slice(0, -1);
-        else if (char >= " ") value += char;
-      }
-    };
-    const cleanup = () => {
-      input.setRawMode(false);
-      input.removeListener("data", onData);
-      rl = createInterface({ input, output });
-    };
-    input.on("data", onData);
-  });
 }
 
 async function confirm(label, fallback = true) {
@@ -140,34 +106,37 @@ async function main() {
 
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
-  const profileName = await askRequired("Your display name in Nudge");
-  let loginKey = await askSecret("Nudge login password/token");
-  while (loginKey.length < 8) {
-    console.log("Use at least 8 characters.");
-    loginKey = await askSecret("Nudge login password/token");
-  }
+  const profileName = await ask("Your name", "Junior");
   const timezone = await ask("Timezone", "Asia/Kolkata");
+  const assistantGender = (await ask("Assistant voice (she or he)", "she")).toLowerCase() === "he" ? "he" : "she";
   const customDomain = await ask("Custom domain (optional; leave blank for workers.dev)");
   const workspaces = (await ask("Workspaces (comma-separated)", "Personal, Work, Startup"))
     .split(",").map((value) => value.trim()).filter(Boolean).slice(0, 50);
   const enableGemini = await confirm("Enable Gemini voice assistant?", false);
-  const geminiKey = enableGemini ? await askSecret("Gemini API key") : "";
   const enableSecondBrain = await confirm("Enable Second Brain memories?", false);
-  const secondBrainUrl = enableSecondBrain ? await askRequired("Second Brain URL") : "";
-  const secondBrainToken = enableSecondBrain ? await askSecret("Second Brain token") : "";
+  const enableEmail = await confirm("Connect a private Email MCP server?", false);
+  const emailMcpUrl = enableEmail ? await askRequired("Email MCP URL") : "";
+  const emailAccessClientId = enableEmail ? await askRequired("Cloudflare Access service token Client ID") : "";
+  const emailMcpWorker = enableEmail ? await ask("Email MCP Worker name", "email-mcp-server") : "";
 
   config.name = workerName;
   config.workers_dev = true;
   config.routes = customDomain ? [{ pattern: customDomain, custom_domain: true }] : [];
   config.vars = {
     APP_TIMEZONE: timezone,
-    NUDGE_PROFILE_NAME: profileName,
     VAPID_SUBJECT: customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`,
-    ...(enableSecondBrain ? { SECOND_BRAIN_URL: secondBrainUrl } : {}),
+    NUDGE_ASSISTANT_GENDER: assistantGender,
+    GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
+    ...(enableGemini ? {} : {}),
+    ...(enableSecondBrain ? { SECOND_BRAIN_URL: await askRequired("Second Brain URL") } : {}),
+    ...(enableEmail ? { EMAIL_MCP_URL: emailMcpUrl } : {}),
   };
   await ensureDatabase(workerName, config);
   updateWrangler(config);
 
+  const loginKey = `nudge_${randomBytes(32).toString("base64url")}`;
+  const loginPath = path.join(projectRoot, "NUDGE_LOGIN_KEY.txt");
+  writeFileSync(loginPath, `${loginKey}\n`, { mode: 0o600 });
   const vapid = generateVapidKeys();
 
   console.log("\nInstalling required secrets…");
@@ -175,8 +144,16 @@ async function main() {
   run("npx", ["wrangler", "secret", "put", "SESSION_SECRET"], { cwd: webRoot, input: `${randomBytes(48).toString("base64url")}\n` });
   run("npx", ["wrangler", "secret", "put", "VAPID_PUBLIC_KEY"], { cwd: webRoot, input: `${vapid.publicKey}\n` });
   run("npx", ["wrangler", "secret", "put", "VAPID_PRIVATE_KEY"], { cwd: webRoot, input: `${vapid.privateKey}\n` });
-  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY"], { cwd: webRoot, input: `${geminiKey}\n` });
-  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN"], { cwd: webRoot, input: `${secondBrainToken}\n` });
+  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY"], { cwd: webRoot });
+  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN"], { cwd: webRoot });
+  if (enableEmail) {
+    const actionSecret = randomBytes(48).toString("base64url");
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_ID"], { cwd: webRoot, input: `${emailAccessClientId}\n` });
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_SECRET"], { cwd: webRoot });
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACTION_SIGNING_SECRET"], { cwd: webRoot, input: `${actionSecret}\n` });
+    run("npx", ["wrangler", "secret", "put", "NUDGE_ACCESS_CLIENT_ID", "--name", emailMcpWorker], { cwd: webRoot, input: `${emailAccessClientId}\n` });
+    run("npx", ["wrangler", "secret", "put", "NUDGE_ACTION_SIGNING_SECRET", "--name", emailMcpWorker], { cwd: webRoot, input: `${actionSecret}\n` });
+  }
 
   console.log("Applying D1 migrations…");
   run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote"], { cwd: webRoot });
@@ -190,7 +167,7 @@ async function main() {
 
   const url = customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`;
   console.log(`\nNudge is deployed: ${url}`);
-  console.log("Your login password/token was installed as a Cloudflare secret. Keep your copy in a password manager.");
+  console.log(`Login key saved to ${loginPath}`);
   console.log("Open the URL, enter the generated key, then enable notifications from the Notifications screen.");
   rl.close();
 }
