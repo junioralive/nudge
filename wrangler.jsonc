@@ -20,7 +20,7 @@
   "vars": {
     "APP_TIMEZONE": "UTC",
     "VAPID_SUBJECT": "https://nudge.example.com",
-    "NUDGE_ASSISTANT_GENDER": "they",
+    "NUDGE_ASSISTANT_GENDER": "she",
     "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
     "GEMINI_REMINDER_MODEL": "gemini-3.5-flash-lite"
   },

@@ -74,7 +74,7 @@ npm run setup:cloudflare
 The setup wizard asks for:
 
 - Worker name and optional custom domain
-- Your name, timezone, assistant pronouns, and initial workspaces
+- Your name, timezone, assistant gender (`she` or `he`), and initial workspaces
 - Whether Gemini should be enabled
 - Whether Second Brain should be enabled and its URL
 

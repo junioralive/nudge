@@ -41,6 +41,15 @@ async function confirm(label, fallback = true) {
   return answer === "y" || answer === "yes";
 }
 
+async function askChoice(label, choices, fallback) {
+  const allowed = new Set(choices);
+  while (true) {
+    const value = await ask(`${label} (${choices.join("/")})`, fallback);
+    if (allowed.has(value.toLowerCase())) return value.toLowerCase();
+    console.log(`Choose ${choices.join(" or ")}.`);
+  }
+}
+
 function safeWorkerName(value) {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "nudge";
 }
@@ -95,7 +104,7 @@ async function main() {
   const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
   const profileName = await ask("Your name", "Junior");
   const timezone = await ask("Timezone", "Asia/Kolkata");
-  const assistantGender = await ask("Assistant pronouns (she, he, or they)", "she");
+  const assistantGender = await askChoice("Assistant gender", ["she", "he"], "she");
   const customDomain = await ask("Custom domain (optional; leave blank for workers.dev)");
   const workspaces = (await ask("Workspaces (comma-separated)", "Personal, Work, Startup"))
     .split(",").map((value) => value.trim()).filter(Boolean).slice(0, 50);
