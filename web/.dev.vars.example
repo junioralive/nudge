@@ -7,4 +7,5 @@ NUDGE_AUTH_KEY=
 GEMINI_API_KEY=
 
 # Optional — leave blank to disable Second Brain memory.
+SECOND_BRAIN_URL=
 SECOND_BRAIN_TOKEN=

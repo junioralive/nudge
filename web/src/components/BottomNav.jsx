@@ -23,20 +23,20 @@ export default function BottomNav({ pushEnabled, capabilities = {}, onAdd, addOp
         <button className="add-btn" onClick={onAdd} aria-label={addOpen ? "Close add task" : "Add task"}>
           {addOpen ? <X size={19} /> : <Plus size={19} />}
         </button>
-        {capabilities.secondBrain && <button
+        <button
           className={view === "calendar" ? "active" : ""}
           onClick={() => onNavigate("calendar")}
           aria-label="Calendar"
         >
           <CalendarDays size={18} />
-        </button>}
-        <button
+        </button>
+        {capabilities.secondBrain && <button
           className={view === "memories" ? "active" : ""}
           onClick={() => onNavigate("memories")}
           aria-label="Memories"
         >
           <Brain size={18} />
-        </button>
+        </button>}
       </div>
     </div>
   );

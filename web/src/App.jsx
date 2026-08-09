@@ -40,6 +40,7 @@ import CalendarView from "./components/CalendarView.jsx";
 import NotificationsView from "./components/NotificationsView.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import TaskEditor from "./components/TaskEditor.jsx";
+import SettingsView from "./components/SettingsView.jsx";
 
 const VoicePanel = lazy(() => import("./components/VoicePanel.jsx"));
 const MemoriesView = lazy(() => import("./components/MemoriesView.jsx"));
@@ -92,6 +93,7 @@ function NudgeApp({ onLogout }) {
   const [tab, setTab] = useState("today");
   const [sortByDue, setSortByDue] = useState(true);
   const [name, setNameState] = useState(getName());
+  const [profile, setProfile] = useState({ name: getName(), timezone: "Asia/Kolkata", assistantGender: "she", assistantVoice: "Zephyr" });
   const [workspaces, setWorkspaces] = useState(getWorkspaces());
   const [activeWorkspace, setActiveWorkspaceState] = useState(getActiveWorkspace());
   const [showAddForm, setShowAddForm] = useState(false);
@@ -120,6 +122,12 @@ function NudgeApp({ onLogout }) {
           bootstrap = await fetchBootstrap();
         }
         setNameState(bootstrap.name);
+        setProfile({
+          name: bootstrap.name,
+          timezone: bootstrap.timezone,
+          assistantGender: bootstrap.assistant_gender || "she",
+          assistantVoice: bootstrap.assistant_voice || "Zephyr",
+        });
         saveName(bootstrap.name);
         setWorkspaces(bootstrap.workspaces);
         if (activeWorkspace !== "All" && !bootstrap.workspaces.includes(activeWorkspace)) {
@@ -161,8 +169,22 @@ function NudgeApp({ onLogout }) {
 
   function handleNameChange(next) {
     setNameState(next);
+    setProfile((current) => ({ ...current, name: next }));
     saveName(next);
     updateProfile({ name: next }).catch((error) => setLoadError(error.message));
+  }
+
+  async function handleSettingsSave(next) {
+    const values = {
+      name: next.name.trim(),
+      timezone: next.timezone,
+      assistant_gender: next.assistantGender,
+      assistant_voice: next.assistantVoice,
+    };
+    await updateProfile(values);
+    setProfile({ ...next, name: values.name });
+    setNameState(values.name);
+    saveName(values.name);
   }
 
   function handleSelectWorkspace(workspace) {
@@ -287,7 +309,7 @@ function NudgeApp({ onLogout }) {
   return (
     <div className="shell">
       <Sidebar
-        name={name} onNameChange={handleNameChange} workspaces={workspaces} activeWorkspace={activeWorkspace}
+        name={name} workspaces={workspaces} activeWorkspace={activeWorkspace}
         onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onDeleteWorkspace={handleDeleteWorkspace} pushEnabled={pushEnabled} capabilities={capabilities}
         onAdd={() => setShowAddForm(true)} counts={workspaceCounts} totalOpen={openTasks.length} doneToday={doneToday}
         view={view} onNavigate={setView} onTalk={() => setVoiceOpen(true)} onLogout={onLogout}
@@ -295,7 +317,7 @@ function NudgeApp({ onLogout }) {
       <div className="main"><div className="app">
         {loadError && <div className="app-error" role="alert">{loadError}</div>}
         <div className="topbar">
-          <Header name={name} onNameChange={handleNameChange} pushEnabled={pushEnabled} onEnableNotifications={handleEnableNotifications}
+          <Header name={name} onNameChange={handleNameChange} onSettings={() => setView("settings")} onLogout={onLogout}
             workspaces={workspaces} activeWorkspace={activeWorkspace} onSelectWorkspace={handleSelectWorkspace} onAddWorkspace={handleAddWorkspace} onDeleteWorkspace={handleDeleteWorkspace} />
           <TodayCard pendingToday={todayCount} totalOpen={openTasks.length} />
         </div>
@@ -307,6 +329,7 @@ function NudgeApp({ onLogout }) {
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view === "memories" ? <Suspense fallback={<div className="empty">Opening Second Brain…</div>}><MemoriesView activeWorkspace={activeWorkspace} /></Suspense>
+          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
               <button className={`add-toggle-btn ${showAddForm ? "open" : ""}`} onClick={() => setShowAddForm((state) => !state)} aria-label="Toggle add task">

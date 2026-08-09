@@ -117,9 +117,10 @@ Required Worker secrets:
 Optional secrets:
 
 - `GEMINI_API_KEY` — enables the voice assistant
+- `SECOND_BRAIN_URL` — connects your deployed Second Brain
 - `SECOND_BRAIN_TOKEN` — enables memory capture and recall
 
-Configuration variables include `APP_TIMEZONE`, `VAPID_SUBJECT`, `NUDGE_ASSISTANT_GENDER`, `GEMINI_LIVE_MODEL`, and optional `SECOND_BRAIN_URL`.
+Configuration variables include `APP_TIMEZONE`, `NUDGE_PROFILE_NAME`, and `VAPID_SUBJECT`. The app uses one maintained Gemini Live model. Assistant gender, voice, timezone, and display name are changed inside Nudge Settings.
 
 ## Optional integrations
 

@@ -22,9 +22,6 @@
   "vars": {
     "APP_TIMEZONE": "UTC",
     "NUDGE_PROFILE_NAME": "Junior",
-    "VAPID_SUBJECT": "https://nudge.example.com",
-    "NUDGE_ASSISTANT_GENDER": "she",
-    "GEMINI_LIVE_MODEL": "gemini-3.1-flash-live-preview",
-    "SECOND_BRAIN_URL": ""
+    "VAPID_SUBJECT": "https://nudge.example.com"
   }
 }

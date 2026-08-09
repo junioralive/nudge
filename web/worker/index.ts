@@ -19,6 +19,8 @@ import type { AppBindings, Env } from "./types";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview";
+const ASSISTANT_VOICES = new Set(["Zephyr", "Kore", "Puck", "Aoede", "Achird", "Sulafat"]);
 
 app.use("/api/*", async (c, next) => {
   await next();
@@ -163,15 +165,17 @@ app.delete("/api/tasks/:id", async (c) => {
 });
 
 app.get("/api/bootstrap", async (c) => {
-  const [name, timezone, workspaces] = await Promise.all([
-    c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first<{ value: string }>(),
-    c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>(),
+  const [settings, workspaces] = await Promise.all([
+    c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string }>(),
     c.env.DB.prepare("SELECT name FROM workspaces ORDER BY sort_order, created_at").all<{ name: string }>(),
   ]);
+  const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
   return c.json({
-    initialized: Boolean(name?.value),
-    name: name?.value || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior",
-    timezone: timezone?.value || c.env.APP_TIMEZONE || "Asia/Kolkata",
+    initialized: Boolean(profile.name),
+    name: profile.name || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior",
+    timezone: profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata",
+    assistant_gender: profile.assistant_gender === "he" ? "he" : "she",
+    assistant_voice: ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr",
     workspaces: (workspaces.results || []).map((row) => row.name),
   });
 });
@@ -198,12 +202,20 @@ app.post("/api/bootstrap", async (c) => {
 });
 
 app.put("/api/profile", async (c) => {
-  const body = await jsonBody<{ name?: string; timezone?: string }>(c);
+  const body = await jsonBody<{ name?: string; timezone?: string; assistant_gender?: string; assistant_voice?: string }>(c);
   const entries: Array<[string, string]> = [];
   if (body.name !== undefined) entries.push(["name", cleanText(body.name, 80)]);
   if (body.timezone !== undefined) entries.push(["timezone", cleanText(body.timezone, 80)]);
+  if (body.assistant_gender !== undefined) {
+    if (body.assistant_gender !== "she" && body.assistant_gender !== "he") return c.json({ error: "assistant gender must be she or he" }, 400);
+    entries.push(["assistant_gender", body.assistant_gender]);
+  }
+  if (body.assistant_voice !== undefined) {
+    if (!ASSISTANT_VOICES.has(body.assistant_voice)) return c.json({ error: "unsupported assistant voice" }, 400);
+    entries.push(["assistant_voice", body.assistant_voice]);
+  }
   const validEntries = entries.filter((entry) => Boolean(entry[1]));
-  if (!validEntries.length) return c.json({ error: "name or timezone is required" }, 400);
+  if (!validEntries.length) return c.json({ error: "at least one profile setting is required" }, 400);
   await c.env.DB.batch(
     validEntries.map(([key, value]) =>
       c.env.DB.prepare(
@@ -341,10 +353,13 @@ app.post("/api/voice-token", async (c) => {
   }
   const body = await jsonBody<{ vad?: Record<string, any> }>(c);
   const vad = body.vad || {};
-  const model = c.env.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview";
-  const profile = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first<{ value: string }>();
-  const profileName = profile?.value?.trim() || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
-  const assistantGender = c.env.NUDGE_ASSISTANT_GENDER || "she";
+  const model = GEMINI_LIVE_MODEL;
+  const settings = await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string }>();
+  const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
+  const profileName = profile.name?.trim() || cleanText(c.env.NUDGE_PROFILE_NAME, 80) || "Junior";
+  const assistantGender = profile.assistant_gender === "he" ? "he" : "she";
+  const assistantVoice = ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr";
+  const timezone = profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata";
   const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY });
   const expireTime = new Date(Date.now() + 30 * 60 * 1_000).toISOString();
 
@@ -361,13 +376,13 @@ app.post("/api/voice-token", async (c) => {
             systemInstruction: {
               parts: [
                 {
-                  text: `${voiceSystemInstruction(profileName, assistantGender)}\nUser timezone: ${c.env.APP_TIMEZONE || "Asia/Kolkata"}. Resolve relative dates in this timezone and pass due times with an explicit offset.`,
+                  text: `${voiceSystemInstruction(profileName, assistantGender)}\nUser timezone: ${timezone}. Resolve relative dates in this timezone and pass due times with an explicit offset.`,
                 },
               ],
             },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: assistantVoice } } },
             thinkingConfig: { thinkingBudget: 0 },
             realtimeInputConfig: {
               automaticActivityDetection: {

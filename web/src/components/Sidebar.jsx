@@ -1,13 +1,12 @@
-import { Home, Bell, CalendarDays, Plus, Check, Mic, Brain, LogOut, Trash2 } from "lucide-react";
+import { Home, Bell, CalendarDays, Plus, Check, Mic, Brain, Trash2 } from "lucide-react";
 import { useState } from "react";
-import NameEditor from "./NameEditor.jsx";
 import Logo from "./Logo.jsx";
+import ProfileMenu from "./ProfileMenu.jsx";
 
 const DOT_TONES = ["dot-purple", "dot-amber", "dot-mint", "dot-blue", "dot-rose"];
 
 export default function Sidebar({
   name,
-  onNameChange,
   workspaces,
   activeWorkspace,
   onSelectWorkspace,
@@ -42,14 +41,6 @@ export default function Sidebar({
       <div className="sidebar-brand">
         <Logo size={22} />
         Nudge
-      </div>
-
-      <div className="sidebar-user">
-        <span className="avatar">{name.trim().charAt(0).toUpperCase()}</span>
-        <span className="sidebar-user-text">
-          <NameEditor name={name} onChange={onNameChange} />
-          <small>{totalOpen} open · {doneToday} done today</small>
-        </span>
       </div>
 
       <nav className="sidebar-nav">
@@ -117,9 +108,7 @@ export default function Sidebar({
       {capabilities.gemini && <button className="talk-nav-btn" onClick={onTalk}>
         <Mic size={16} /> Talk to Nudge
       </button>}
-      <button className="logout-nav-btn" onClick={onLogout}>
-        <LogOut size={15} /> Lock Nudge
-      </button>
+      <ProfileMenu name={name} detail={`${totalOpen} open · ${doneToday} done today`} onSettings={() => onNavigate("settings")} onLogout={onLogout} />
     </aside>
   );
 }

@@ -150,7 +150,13 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
       rows = rows.filter((task) => `${task.text}\n${task.details || ""}`.toLowerCase().includes(query));
     }
 
-    const timezone = env.APP_TIMEZONE || "Asia/Kolkata";
+    let timezone = env.APP_TIMEZONE || "Asia/Kolkata";
+    try {
+      const saved = await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
+      if (saved?.value) timezone = saved.value;
+    } catch {
+      // Older test/local databases can safely fall back to the deployment timezone.
+    }
     if (completed) {
       rows = rows.filter((task) => inCompletionRange(task.done_at!, args.completed_after, args.completed_before));
       rows.sort((a, b) => (b.done_at || "").localeCompare(a.done_at || ""));

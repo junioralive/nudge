@@ -1,12 +1,12 @@
-import { Bell, BellRing } from "lucide-react";
 import NameEditor from "./NameEditor.jsx";
 import WorkspaceDropdown from "./WorkspaceDropdown.jsx";
+import ProfileMenu from "./ProfileMenu.jsx";
 
 export default function Header({
   name,
   onNameChange,
-  pushEnabled,
-  onEnableNotifications,
+  onSettings,
+  onLogout,
   workspaces,
   activeWorkspace,
   onSelectWorkspace,
@@ -29,14 +29,7 @@ export default function Header({
           , <NameEditor name={name} onChange={onNameChange} />?
         </h1>
       </div>
-      <button
-        className={`bell mobile-only ${pushEnabled ? "enabled" : ""}`}
-        onClick={onEnableNotifications}
-        title={pushEnabled ? "Notifications on" : "Enable notifications"}
-        aria-label="Enable notifications"
-      >
-        {pushEnabled ? <BellRing size={19} /> : <Bell size={19} />}
-      </button>
+      <div className="mobile-only"><ProfileMenu compact name={name} onSettings={onSettings} onLogout={onLogout} /></div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(projectRoot, "web");
-const USER_SECRET_NAMES = ["NUDGE_AUTH_KEY", "GEMINI_API_KEY", "SECOND_BRAIN_TOKEN"];
+const USER_SECRET_NAMES = ["NUDGE_AUTH_KEY", "GEMINI_API_KEY", "SECOND_BRAIN_URL", "SECOND_BRAIN_TOKEN"];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {

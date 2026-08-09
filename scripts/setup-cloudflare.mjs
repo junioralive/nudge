@@ -83,15 +83,6 @@ async function confirm(label, fallback = true) {
   return answer === "y" || answer === "yes";
 }
 
-async function askChoice(label, choices, fallback) {
-  const allowed = new Set(choices);
-  while (true) {
-    const value = await ask(`${label} (${choices.join("/")})`, fallback);
-    if (allowed.has(value.toLowerCase())) return value.toLowerCase();
-    console.log(`Choose ${choices.join(" or ")}.`);
-  }
-}
-
 function safeWorkerName(value) {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "nudge";
 }
@@ -156,7 +147,6 @@ async function main() {
     loginKey = await askSecret("Nudge login password/token");
   }
   const timezone = await ask("Timezone", "Asia/Kolkata");
-  const assistantGender = await askChoice("Assistant gender", ["she", "he"], "she");
   const customDomain = await ask("Custom domain (optional; leave blank for workers.dev)");
   const workspaces = (await ask("Workspaces (comma-separated)", "Personal, Work, Startup"))
     .split(",").map((value) => value.trim()).filter(Boolean).slice(0, 50);
@@ -173,9 +163,6 @@ async function main() {
     APP_TIMEZONE: timezone,
     NUDGE_PROFILE_NAME: profileName,
     VAPID_SUBJECT: customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`,
-    NUDGE_ASSISTANT_GENDER: assistantGender,
-    GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
-    ...(enableGemini ? {} : {}),
     ...(enableSecondBrain ? { SECOND_BRAIN_URL: secondBrainUrl } : {}),
   };
   await ensureDatabase(workerName, config);
