@@ -150,7 +150,9 @@ function headers(env: Env, sessionId?: string, extra?: HeadersInit): HeadersInit
 
 async function readRpc(response: Response): Promise<Record<string, any>> {
   const body = await response.text();
+  if (!body && (response.status === 202 || response.status === 204)) return {};
   if (!body) throw new EmailMcpError("Email service returned an empty response");
+  if (body.trimStart().startsWith("<")) throw new EmailMcpError("Email service authorization failed", 502);
   if (response.headers.get("content-type")?.includes("text/event-stream")) {
     const events = body.split(/\r?\n/).filter((line) => line.startsWith("data:"));
     const last = events.at(-1)?.slice(5).trim();
@@ -167,14 +169,16 @@ async function post(env: Env, url: string, payload: Record<string, any>, session
       method: "POST",
       headers: headers(env, sessionId, extraHeaders),
       body: JSON.stringify(payload),
+      redirect: "manual",
       signal: AbortSignal.timeout(12_000),
     });
   } catch {
     throw new EmailMcpError("Email service unavailable", 503);
   }
   if (!response.ok) {
-    const status = response.status === 401 || response.status === 403 ? 502 : response.status;
-    throw new EmailMcpError(response.status === 401 || response.status === 403 ? "Email service authorization failed" : `Email service returned ${response.status}`, status);
+    const authorizationFailure = response.status === 401 || response.status === 403 || (response.status >= 300 && response.status < 400);
+    const status = authorizationFailure ? 502 : response.status;
+    throw new EmailMcpError(authorizationFailure ? "Email service authorization failed" : `Email service returned ${response.status}`, status);
   }
   return { response, rpc: await readRpc(response) };
 }
