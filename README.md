@@ -74,11 +74,11 @@ npm run setup:cloudflare
 The setup wizard asks for:
 
 - Worker name and optional custom domain
-- Your name, timezone, assistant gender (`she` or `he`), and initial workspaces
+- Your display name, login password/token, timezone, assistant gender (`she` or `he`), and initial workspaces
 - Whether Gemini should be enabled
 - Whether Second Brain should be enabled and its URL
 
-It then creates or reuses D1, generates session and VAPID secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. No personal URL, token, or API key is included in this repository.
+It then creates or reuses D1, generates session and VAPID secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. Your login password is stored only as a Cloudflare secret and is never written to the repository.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 

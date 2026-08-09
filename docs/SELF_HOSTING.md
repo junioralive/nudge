@@ -10,9 +10,9 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks for the Worker name, profile name, timezone, assistant gender (`she` or `he`), optional custom domain, initial workspaces, and optional Gemini/Second Brain integrations.
+The setup wizard asks for the Worker name, display name, login password/token, timezone, assistant gender (`she` or `he`), optional custom domain, initial workspaces, and optional Gemini/Second Brain integrations.
 
-It provisions or reuses D1, generates the login/session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. The generated login key is saved locally to `NUDGE_LOGIN_KEY.txt`; copy it into your password manager and do not commit it.
+It provisions or reuses D1, installs your login password, generates session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. Keep your login password in a password manager; it is never written to the repository.
 
 If no custom domain is chosen, use the `workers.dev` URL printed at the end. If a custom domain is chosen, Cloudflare must have the domain in the same account and DNS must be available for the custom Worker domain.
 

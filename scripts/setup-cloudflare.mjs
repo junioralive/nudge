@@ -8,7 +8,7 @@ import { stdin as input, stdout as output } from "node:process";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(projectRoot, "web");
 const wranglerPath = path.join(webRoot, "wrangler.jsonc");
-const rl = createInterface({ input, output });
+let rl = createInterface({ input, output });
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -33,6 +33,48 @@ function capture(command, args, cwd = projectRoot) {
 async function ask(label, fallback = "") {
   const answer = await rl.question(`${label}${fallback ? ` [${fallback}]` : ""}: `);
   return answer.trim() || fallback;
+}
+
+async function askRequired(label) {
+  while (true) {
+    const value = await ask(label);
+    if (value) return value;
+    console.log("This value is required.");
+  }
+}
+
+async function askSecret(label) {
+  if (!input.isTTY || typeof input.setRawMode !== "function") return askRequired(label);
+  rl.close();
+  output.write(`${label}: `);
+  input.setRawMode(true);
+  input.resume();
+  return new Promise((resolve, reject) => {
+    let value = "";
+    const onData = (chunk) => {
+      for (const char of String(chunk)) {
+        if (char === "\u0003") {
+          cleanup();
+          reject(new Error("Setup cancelled"));
+          return;
+        }
+        if (char === "\r" || char === "\n") {
+          cleanup();
+          output.write("\n");
+          resolve(value);
+          return;
+        }
+        if (char === "\u007f") value = value.slice(0, -1);
+        else if (char >= " ") value += char;
+      }
+    };
+    const cleanup = () => {
+      input.setRawMode(false);
+      input.removeListener("data", onData);
+      rl = createInterface({ input, output });
+    };
+    input.on("data", onData);
+  });
 }
 
 async function confirm(label, fallback = true) {
@@ -102,7 +144,12 @@ async function main() {
 
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
-  const profileName = await ask("Your display name in Nudge", "Junior");
+  const profileName = await askRequired("Your display name in Nudge");
+  let loginKey = await askSecret("Nudge login password/token");
+  while (loginKey.length < 8) {
+    console.log("Use at least 8 characters.");
+    loginKey = await askSecret("Nudge login password/token");
+  }
   const timezone = await ask("Timezone", "Asia/Kolkata");
   const assistantGender = await askChoice("Assistant gender", ["she", "he"], "she");
   const customDomain = await ask("Custom domain (optional; leave blank for workers.dev)");
@@ -125,9 +172,6 @@ async function main() {
   await ensureDatabase(workerName, config);
   updateWrangler(config);
 
-  const loginKey = `nudge_${randomBytes(32).toString("base64url")}`;
-  const loginPath = path.join(projectRoot, "NUDGE_LOGIN_KEY.txt");
-  writeFileSync(loginPath, `${loginKey}\n`, { mode: 0o600 });
   const vapid = generateVapidKeys();
 
   console.log("\nInstalling required secrets…");
@@ -150,7 +194,7 @@ async function main() {
 
   const url = customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`;
   console.log(`\nNudge is deployed: ${url}`);
-  console.log(`Login key saved to ${loginPath}`);
+  console.log("Your login password/token was installed as a Cloudflare secret. Keep your copy in a password manager.");
   console.log("Open the URL, enter the generated key, then enable notifications from the Notifications screen.");
   rl.close();
 }
