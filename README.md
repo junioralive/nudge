@@ -91,7 +91,7 @@ Build command:  npm run cloudflare:build
 Deploy command: npm run cloudflare:deploy
 ```
 
-The Worker configuration is in `web/wrangler.jsonc`. Do not use `npx wrangler deploy` from the repository root: Wrangler will see the npm workspace and stop before it reaches the Worker project. The deploy script enters the `web` workspace after the Vite build, which also supplies the generated asset directory.
+The repository includes a root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The guided setup writes your real D1 binding and deployment values into `web/wrangler.jsonc`; keep the build and deploy commands above so Vite generates the final Worker bundle and asset manifest before deployment.
 
 ## Local development
 
