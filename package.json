@@ -20,6 +20,21 @@
   },
   "cloudflare": {
     "bindings": {
+      "DB": {
+        "description": "Main Nudge task database. For a new installation, name it `nudge-db`."
+      },
+      "MEMORY_DB": {
+        "description": "Separate Memories database. For a new installation, name it `nudge-memories`."
+      },
+      "EMAIL_KV": {
+        "description": "Encrypted email account and OAuth-token storage. Create a separate namespace named `nudge-email`."
+      },
+      "MEMORY_CONFIG_KV": {
+        "description": "Memories configuration and processing state. Create a separate namespace named `nudge-memories-config`."
+      },
+      "MEMORY_VECTORIZE": {
+        "description": "384-dimensional semantic index for Memories. Name it `nudge-memories-vectors`."
+      },
       "VAPID_PUBLIC_KEY": {
         "description": "Required push public key. The guided setup generates the VAPID pair automatically."
       },

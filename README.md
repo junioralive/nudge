@@ -65,6 +65,8 @@ flowchart LR
 
 The button clones the repository, provisions both D1 databases, both KV namespaces, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
 
+Cloudflare shows two KV selectors because Nudge intentionally separates encrypted Email credentials (`nudge-email`) from Memories configuration (`nudge-memories-config`). They are different bindings and must not be pointed at the same namespace.
+
 The button cannot create Cloudflare Zero Trust Access applications or owner-email OTP policies. The first infrastructure deployment therefore stays securely fail-closed until you finish the guided Access step from the generated repository:
 
 ```sh

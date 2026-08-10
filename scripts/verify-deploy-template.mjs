@@ -30,6 +30,9 @@ requireValue(durableObjects.has("MCP_OBJECT") && durableObjects.has("MEMORY_MCP_
 requireValue(config.ai?.binding === "AI", "Workers AI binding is required");
 requireValue(workerFirst.has("/api/*") && workerFirst.has("/email/mcp") && workerFirst.has("/memories/mcp"), "API and MCP routes must run through the Worker");
 requireValue(pkg.scripts?.build && pkg.scripts?.deploy && pkg.scripts?.["setup:cloudflare"], "Cloudflare build, deploy, and guided setup scripts are required");
+for (const binding of ["DB", "MEMORY_DB", "EMAIL_KV", "MEMORY_CONFIG_KV", "MEMORY_VECTORIZE"]) {
+  requireValue(Boolean(pkg.cloudflare?.bindings?.[binding]?.description), `${binding} needs a Deploy-button description`);
+}
 requireValue(existsSync(path.join(root, "web", "migrations")), "task migrations directory is missing");
 requireValue(existsSync(path.join(root, "web", "memory-migrations", "0001_memories.sql")), "Memories migration is missing");
 
