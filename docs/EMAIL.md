@@ -12,6 +12,8 @@ The Email MCP tool names, schemas, annotations, and result formats remain compat
 
 The Nudge hostname is protected by one Cloudflare Access self-hosted application covering `/*`. The same application provides the owner-email Allow policy, email OTP, and Managed OAuth for `/email/mcp`. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
 
+The Managed OAuth redirect allowlist must include `https://chatgpt.com/*` for ChatGPT and `https://claude.ai/*` for Claude. Cloudflare rejects dynamic client registration with `invalid_client_metadata` when the requesting client's callback is not allowed.
+
 In ChatGPT or Claude, add `https://<your-nudge-host>/email/mcp` as a remote MCP server and complete the Cloudflare email OTP flow. Do not use the retired standalone endpoint after migration acceptance passes.
 
 ## Configuration

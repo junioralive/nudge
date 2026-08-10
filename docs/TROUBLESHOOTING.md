@@ -8,4 +8,5 @@
 - Access login loop: confirm the Access application covers `<host>/*`, its Allow policy contains the owner email, and `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` match the application.
 - Email hidden: check `/api/capabilities` after Access login and confirm `EMAIL_KV` plus `CREDENTIAL_ENCRYPTION_KEY` are configured. Email is intentionally hidden when either is absent.
 - MCP authorization failed: confirm Managed OAuth is enabled on the Access application covering `<host>/*` and its owner-email policy is Allow. Reconnect ChatGPT or Claude to `https://<host>/email/mcp`.
+- MCP registration returns `invalid_client_metadata: redirect_uri is not allowed`: add `https://chatgpt.com/*` and/or `https://claude.ai/*` under **Advanced settings → Managed OAuth → Allowed redirect URIs**, then save and recreate the connector.
 - Outlook callback failed: register `https://<host>/api/email/oauth/outlook/callback` exactly in Microsoft Entra and keep `OUTLOOK_TENANT` aligned with the account type.

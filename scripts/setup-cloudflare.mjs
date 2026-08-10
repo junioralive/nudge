@@ -8,6 +8,7 @@ import { stdin as input, stdout as output } from "node:process";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const wranglerPath = path.join(projectRoot, "wrangler.jsonc");
 const rl = createInterface({ input, output });
+const managedOauthRedirectUris = ["https://chatgpt.com/*", "https://claude.ai/*"];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -183,7 +184,7 @@ async function ensureAccessApplication(token, accountId, hostname, domain, type,
           enabled: true,
           allow_any_on_localhost: false,
           allow_any_on_loopback: false,
-          allowed_uris: ["https://chatgpt.com/*", "https://claude.ai/*"],
+          allowed_uris: managedOauthRedirectUris,
         },
         grant: { access_token_lifetime: "15m", session_duration: "24h" },
       },
@@ -287,6 +288,7 @@ async function main() {
   console.log(`Email MCP endpoint: https://${hostname}/email/mcp`);
   if (enableOutlook) console.log(`Microsoft redirect URI: https://${hostname}/api/email/oauth/outlook/callback`);
   console.log(`Email KV namespace: ${kvId}`);
+  console.log(`Managed OAuth redirect URIs: ${managedOauthRedirectUris.join(", ")}`);
   console.log("Access application and MCP sessions are set to 24 hours; Managed OAuth uses 15-minute access tokens.");
   rl.close();
 }

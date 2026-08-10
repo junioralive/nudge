@@ -170,6 +170,13 @@ https://<your-nudge-host>/email/mcp
 
 The Access application covering `/*` also enables Managed OAuth with 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow. Register this Microsoft Entra redirect URI:
 
+For an existing Access application configured manually, add these **Managed OAuth → Allowed redirect URIs** before connecting an MCP client:
+
+```text
+https://chatgpt.com/*
+https://claude.ai/*
+```
+
 ```text
 https://<your-nudge-host>/api/email/oauth/outlook/callback
 ```
