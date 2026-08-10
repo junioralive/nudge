@@ -8,14 +8,8 @@
   ],
   "workers_dev": true,
   "preview_urls": true,
-  "routes": [
-    {
-      "pattern": "nudge.junioralive.in",
-      "custom_domain": true
-    }
-  ],
   "vars": {
-    "VAPID_SUBJECT": "https://nudge.junioralive.in"
+    "VAPID_SUBJECT": "https://github.com/junioralive/nudge"
   },
   "assets": {
     "directory": "web/dist/client",

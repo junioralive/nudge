@@ -94,28 +94,55 @@ function unwrap(value) {
   return value;
 }
 
+function itemId(item) {
+  return item?.uuid || item?.id || item?.database_id || item?.namespace_id;
+}
+
+function expectedKvTitle(workerName, binding) {
+  if (binding === "EMAIL_KV") return `${workerName}-email`;
+  if (binding === "MEMORY_CONFIG_KV") return `${workerName}-memories-config`;
+  return `${workerName}-${binding.toLowerCase().replaceAll("_", "-")}`;
+}
+
 function ensureCloudflareResources() {
   const config = JSON.parse(readFileSync(wranglerConfig, "utf8"));
-  const database = config.d1_databases?.[0];
-  if (database && !database.database_id) {
-    const listed = unwrap(jsonFromOutput(run("npx", ["wrangler", "d1", "list", "--json", "--config", wranglerConfig], { capture: true })));
-    let found = Array.isArray(listed) ? listed.find((item) => item.name === database.database_name) : null;
+  const workerName = config.name || "nudge";
+  let databases = unwrap(jsonFromOutput(run("npx", ["wrangler", "d1", "list", "--json", "--config", wranglerConfig], { capture: true })));
+  databases = Array.isArray(databases) ? databases : [];
+  for (const database of config.d1_databases || []) {
+    let found = databases.find((item) => itemId(item) === database.database_id);
+    found ||= databases.find((item) => item.name === database.database_name);
     if (!found) {
       const created = unwrap(jsonFromOutput(run("npx", ["wrangler", "d1", "create", database.database_name, "--json", "--config", wranglerConfig], { capture: true })));
-      found = created?.database_id ? { uuid: created.database_id } : created;
+      found = created?.database_id ? { uuid: created.database_id, name: database.database_name } : created;
+      databases.push(found);
     }
-    if (!found?.uuid) throw new Error(`Could not provision D1 database ${database.database_name}. Run npm run setup:cloudflare once.`);
-    database.database_id = found.uuid;
+    const id = itemId(found);
+    if (!id) throw new Error(`Could not provision D1 database ${database.database_name}. Run npm run setup:cloudflare once.`);
+    database.database_id = id;
   }
 
-  const namespace = config.kv_namespaces?.[0];
-  if (namespace && (!namespace.id || namespace.id.startsWith("replace-with-"))) {
-    const title = `${config.name || "nudge"}-email`;
-    const listed = unwrap(jsonFromOutput(run("npx", ["wrangler", "kv", "namespace", "list", "--config", wranglerConfig], { capture: true })));
-    let found = Array.isArray(listed) ? listed.find((item) => item.title === title || item.title === "EMAIL_KV") : null;
-    if (!found) found = unwrap(jsonFromOutput(run("npx", ["wrangler", "kv", "namespace", "create", title, "--config", wranglerConfig], { capture: true })));
-    namespace.id = found?.id || found?.namespace_id;
-    if (!namespace.id) throw new Error("Could not provision Email KV. Run npm run setup:cloudflare once.");
+  let namespaces = unwrap(jsonFromOutput(run("npx", ["wrangler", "kv", "namespace", "list", "--config", wranglerConfig], { capture: true })));
+  namespaces = Array.isArray(namespaces) ? namespaces : [];
+  for (const namespace of config.kv_namespaces || []) {
+    const title = expectedKvTitle(workerName, namespace.binding);
+    let found = namespaces.find((item) => itemId(item) === namespace.id);
+    found ||= namespaces.find((item) => item.title === title || item.title === namespace.binding);
+    if (!found) {
+      found = unwrap(jsonFromOutput(run("npx", ["wrangler", "kv", "namespace", "create", title, "--config", wranglerConfig], { capture: true })));
+      namespaces.push(found);
+    }
+    namespace.id = itemId(found);
+    if (!namespace.id) throw new Error(`Could not provision KV namespace ${title}. Run npm run setup:cloudflare once.`);
+  }
+
+  let indexes = unwrap(jsonFromOutput(run("npx", ["wrangler", "vectorize", "list", "--json", "--config", wranglerConfig], { capture: true })));
+  indexes = Array.isArray(indexes) ? indexes : [];
+  for (const vector of config.vectorize || []) {
+    if (!indexes.some((item) => item.name === vector.index_name)) {
+      run("npx", ["wrangler", "vectorize", "create", vector.index_name, "--dimensions=384", "--metric=cosine", "--config", wranglerConfig]);
+      indexes.push({ name: vector.index_name });
+    }
   }
   writeFileSync(wranglerConfig, `${JSON.stringify(config, null, 2)}\n`);
 }

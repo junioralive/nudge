@@ -63,9 +63,19 @@ flowchart LR
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge)
 
-Cloudflare clones the repository, shows the fields declared in `.dev.vars.example`, provisions D1, deploys the Worker, and applies its migrations. Field descriptions come from `package.json`; secret values are encrypted by Cloudflare and are not committed to the generated repository.
+The button clones the repository, provisions both D1 databases, both KV namespaces, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
 
-For the terminal-based guided setup instead:
+The button cannot create Cloudflare Zero Trust Access applications or owner-email OTP policies. The first infrastructure deployment therefore stays securely fail-closed until you finish the guided Access step from the generated repository:
+
+```sh
+npm install
+npx wrangler login
+npm run setup:cloudflare
+```
+
+That guided command asks only for the owner email and a temporary, narrowly scoped Access token. It completes Access, Managed OAuth, generated secrets, migrations, and the final secured deployment. The token remains memory-only. This is the supported end-to-end installation path; the Deploy button alone is not a fully usable one-click installation.
+
+You can also skip the button and run the same guided setup directly after cloning:
 
 ```sh
 npm install
@@ -91,7 +101,7 @@ Build command:  npm run cloudflare:build
 Deploy command: npm run cloudflare:deploy
 ```
 
-The repository includes a root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. Keep the build and deploy commands above so Vite generates the final Worker bundle, deploys it, and applies D1 migrations.
+The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. Keep the build and deploy commands above so Vite generates the final Worker bundle, validates or provisions every named resource, generates missing deployment secrets, deploys it, and applies both task and Memories migrations.
 
 ## Local development
 

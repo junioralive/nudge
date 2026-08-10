@@ -20,6 +20,7 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run verify:deploy
       - run: npm audit --omit=dev
       - name: Check for local secrets and databases
         run: |

@@ -14,6 +14,7 @@
     "deploy": "node scripts/deploy-cloudflare.mjs",
     "cloudflare:build": "npm run build -w web",
     "cloudflare:deploy": "npm run deploy",
+    "verify:deploy": "node scripts/verify-deploy-template.mjs",
     "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
     "migrate:sqlite": "node scripts/migrate-sqlite.mjs"
   },
