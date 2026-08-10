@@ -1,4 +1,7 @@
 import type { Env } from "./types";
+import { isValidEncryptionKey } from "./email-core/crypto";
+import { AccountStore, EmailStoreError } from "./email-core/mail/account-store";
+import { MailService } from "./email-core/mail/mail-service";
 
 export class EmailMcpError extends Error {
   constructor(message: string, public status = 502) {
@@ -19,16 +22,9 @@ type ApprovalAction = "mark-read" | "mark-unread" | "archive" | "send-draft";
 const encoder = new TextEncoder();
 const MESSAGE_REFERENCE_SECONDS = 60 * 60;
 const APPROVAL_SECONDS = 10 * 60;
-const UPSTREAM_ACTION_SECONDS = 60;
-const MUTATING_EMAIL_TOOLS = new Set([
-  "email_update_message_flags",
-  "email_archive_messages",
-  "email_create_message_draft",
-  "email_send_draft",
-]);
 
 export function emailConfigured(env: Env): boolean {
-  return Boolean(env.EMAIL_MCP_URL && env.EMAIL_ACCESS_CLIENT_ID && env.EMAIL_ACCESS_CLIENT_SECRET);
+  return Boolean(env.EMAIL_KV && isValidEncryptionKey(env.CREDENTIAL_ENCRYPTION_KEY));
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {
@@ -99,7 +95,7 @@ function cleanReference(input: Record<string, any>): EmailReference {
 
 export async function createEmailReference(env: Env, input: Record<string, any>): Promise<string> {
   const ref = cleanReference(input);
-  return signedToken(env.SESSION_SECRET, {
+  return signedToken(actionSecret(env), {
     v: 1,
     kind: "email-message",
     ...ref,
@@ -108,13 +104,13 @@ export async function createEmailReference(env: Env, input: Record<string, any>)
 }
 
 export async function readEmailReference(env: Env, token: string): Promise<EmailReference> {
-  const payload = await verifiedToken(env.SESSION_SECRET, token);
+  const payload = await verifiedToken(actionSecret(env), token);
   if (payload.kind !== "email-message" || payload.v !== 1) throw new EmailMcpError("Invalid email reference", 400);
   return cleanReference(payload);
 }
 
 export async function createEmailApproval(env: Env, action: ApprovalAction, args: Record<string, unknown>): Promise<string> {
-  return signedToken(env.SESSION_SECRET, {
+  return signedToken(actionSecret(env), {
     v: 1,
     kind: "email-approval",
     action,
@@ -125,7 +121,7 @@ export async function createEmailApproval(env: Env, action: ApprovalAction, args
 }
 
 export async function consumeEmailApproval(env: Env, token: string, action: ApprovalAction): Promise<Record<string, any>> {
-  const payload = await verifiedToken(env.SESSION_SECRET, token);
+  const payload = await verifiedToken(actionSecret(env), token);
   if (payload.kind !== "email-approval" || payload.v !== 1 || payload.action !== action || !payload.nonce || !payload.args) {
     throw new EmailMcpError("Invalid email approval", 400);
   }
@@ -137,90 +133,34 @@ export async function consumeEmailApproval(env: Env, token: string, action: Appr
   return payload.args;
 }
 
-function headers(env: Env, sessionId?: string, extra?: HeadersInit): HeadersInit {
-  return {
-    Accept: "application/json, text/event-stream",
-    "Content-Type": "application/json",
-    "CF-Access-Client-Id": env.EMAIL_ACCESS_CLIENT_ID || "",
-    "CF-Access-Client-Secret": env.EMAIL_ACCESS_CLIENT_SECRET || "",
-    ...(sessionId ? { "Mcp-Session-Id": sessionId } : {}),
-    ...extra,
-  };
-}
-
-async function readRpc(response: Response): Promise<Record<string, any>> {
-  const body = await response.text();
-  if (!body && (response.status === 202 || response.status === 204)) return {};
-  if (!body) throw new EmailMcpError("Email service returned an empty response");
-  if (body.trimStart().startsWith("<")) throw new EmailMcpError("Email service authorization failed", 502);
-  if (response.headers.get("content-type")?.includes("text/event-stream")) {
-    const events = body.split(/\r?\n/).filter((line) => line.startsWith("data:"));
-    const last = events.at(-1)?.slice(5).trim();
-    if (!last) throw new EmailMcpError("Email service returned an invalid event stream");
-    try { return JSON.parse(last); } catch { throw new EmailMcpError("Email service returned invalid JSON"); }
-  }
-  try { return JSON.parse(body); } catch { throw new EmailMcpError("Email service returned invalid JSON"); }
-}
-
-async function post(env: Env, url: string, payload: Record<string, any>, sessionId?: string, extraHeaders?: HeadersInit): Promise<{ response: Response; rpc: Record<string, any> }> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: headers(env, sessionId, extraHeaders),
-      body: JSON.stringify(payload),
-      redirect: "manual",
-      signal: AbortSignal.timeout(12_000),
-    });
-  } catch {
-    throw new EmailMcpError("Email service unavailable", 503);
-  }
-  if (!response.ok) {
-    const authorizationFailure = response.status === 401 || response.status === 403 || (response.status >= 300 && response.status < 400);
-    const status = authorizationFailure ? 502 : response.status;
-    throw new EmailMcpError(authorizationFailure ? "Email service authorization failed" : `Email service returned ${response.status}`, status);
-  }
-  return { response, rpc: await readRpc(response) };
-}
-
-async function upstreamActionHeader(env: Env, tool: string, args: Record<string, unknown>): Promise<string> {
-  if (!env.EMAIL_ACTION_SIGNING_SECRET) throw new EmailMcpError("Email actions are not configured", 503);
-  const now = Math.floor(Date.now() / 1000);
-  return signedToken(env.EMAIL_ACTION_SIGNING_SECRET, {
-    v: 1,
-    tool,
-    argsHash: await sha256(stableStringify(args)),
-    iat: now,
-    exp: now + UPSTREAM_ACTION_SECONDS,
-    nonce: crypto.randomUUID(),
-  });
-}
-
 export async function callEmailTool(env: Env, name: string, args: Record<string, unknown> = {}): Promise<any> {
   if (!emailConfigured(env)) throw new EmailMcpError("Email integration is not configured", 503);
-  const url = new URL("/mcp", `${env.EMAIL_MCP_URL!.replace(/\/$/, "")}/`).toString();
-  const initialized = await post(env, url, {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "nudge", version: "1.0.0" },
-    },
-  });
-  const sessionId = initialized.response.headers.get("Mcp-Session-Id") || undefined;
-  if (initialized.rpc.error) throw new EmailMcpError("Email service initialization failed");
-  await post(env, url, { jsonrpc: "2.0", method: "notifications/initialized", params: {} }, sessionId);
-  const extraHeaders = MUTATING_EMAIL_TOOLS.has(name) ? { "X-Nudge-Email-Action": await upstreamActionHeader(env, name, args) } : undefined;
-  const result = await post(env, url, {
-    jsonrpc: "2.0",
-    id: 2,
-    method: "tools/call",
-    params: { name, arguments: args },
-  }, sessionId, extraHeaders);
-  if (result.rpc.error) throw new EmailMcpError("Email tool call failed");
-  return result.rpc.result?.structuredContent ?? result.rpc.result ?? result.rpc;
+  const store = new AccountStore(env.EMAIL_KV!, env.CREDENTIAL_ENCRYPTION_KEY!);
+  const mail = new MailService(store, { clientId: env.OUTLOOK_CLIENT_ID, clientSecret: env.OUTLOOK_CLIENT_SECRET });
+  switch (name) {
+    case "email_list_accounts": {
+      const accounts = await store.list();
+      return { accounts: accounts.map((account) => ({
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        capabilities: { imap: true, smtp: Boolean(account.smtp), canSend: Boolean(account.smtp) },
+      })) };
+    }
+    case "email_search_all_accounts": return mail.searchAll(args as any);
+    case "email_list_all_inbox_messages": return mail.listAllInboxes(args as any);
+    case "email_get_message": return mail.getMessage(args.accountId as string | undefined, String(args.folder || "INBOX"), Number(args.uid));
+    case "email_update_message_flags": return mail.mark(args.accountId as string | undefined, String(args.folder || "INBOX"), args.uid as number | number[], { seen: args.seen as boolean | undefined, flagged: args.flagged as boolean | undefined });
+    case "email_archive_messages": return mail.archive(args.accountId as string | undefined, String(args.folder || "INBOX"), args.uid as number | number[]);
+    case "email_create_message_draft": return mail.createDraft(args as any);
+    case "email_send_draft": return mail.sendDraft(args.accountId as string | undefined, String(args.folder), Number(args.uid));
+    default: throw new EmailMcpError(`Email tool is not available to Nudge: ${name}`, 403);
+  }
+}
+
+function actionSecret(env: Env): string {
+  if (!env.NUDGE_ACTION_SIGNING_SECRET) throw new EmailMcpError("Email actions are not configured", 503);
+  return env.NUDGE_ACTION_SIGNING_SECRET;
 }
 
 function stringValue(value: unknown, max: number): string {
@@ -317,5 +257,14 @@ export function safeEmailMessage(result: Record<string, any>, forModel = false) 
 
 export function safeEmailError(error: unknown): string {
   if (error instanceof EmailMcpError) return error.message;
+  if (error instanceof EmailStoreError) {
+    return error.code === "invalid_key" ? "Email encryption is not configured correctly" : "Email storage unavailable";
+  }
   return "Email service unavailable";
+}
+
+export function emailErrorCategory(error: unknown): string {
+  if (error instanceof EmailStoreError) return error.code;
+  if (error instanceof EmailMcpError) return "email_request";
+  return "unknown";
 }

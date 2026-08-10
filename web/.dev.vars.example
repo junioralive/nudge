@@ -1,11 +1,20 @@
-NUDGE_AUTH_KEY=replace-with-a-strong-app-key
-SESSION_SECRET=replace-with-a-random-session-signing-secret
-# Optional integrations:
-# SECOND_BRAIN_TOKEN=replace-with-your-rotated-second-brain-token
-# GEMINI_API_KEY=replace-with-your-gemini-api-key
-# EMAIL_ACCESS_CLIENT_ID=replace-with-your-cloudflare-access-service-token-client-id
-# EMAIL_ACCESS_CLIENT_SECRET=replace-with-your-cloudflare-access-service-token-client-secret
-# EMAIL_ACTION_SIGNING_SECRET=replace-with-a-shared-random-secret
-# NUDGE_ASSISTANT_GENDER=she
-VAPID_PUBLIC_KEY=replace-with-your-vapid-public-key
-VAPID_PRIVATE_KEY=replace-with-your-vapid-private-key
+# Local-only values. Never commit .dev.vars.
+ACCESS_LOCAL_DEV=true
+NUDGE_OWNER_EMAIL=owner@example.com
+TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+NUDGE_ACCESS_AUD=local-development
+EMAIL_MCP_ACCESS_AUD=local-development
+CREDENTIAL_ENCRYPTION_KEY=base64-encoded-32-byte-key
+NUDGE_ACTION_SIGNING_SECRET=replace-with-a-random-action-secret
+VAPID_PUBLIC_KEY=replace-with-vapid-public-key
+VAPID_PRIVATE_KEY=replace-with-vapid-private-key
+APP_TIMEZONE=Asia/Kolkata
+NUDGE_PROFILE_NAME=Junior
+OUTLOOK_TENANT=consumers
+
+# Optional integrations.
+# GEMINI_API_KEY=
+# SECOND_BRAIN_URL=
+# SECOND_BRAIN_TOKEN=
+# OUTLOOK_CLIENT_ID=
+# OUTLOOK_CLIENT_SECRET=

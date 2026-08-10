@@ -1,52 +1,53 @@
-# Email assistant
+# Embedded email
 
-Email is an optional, on-demand capability backed by a separately deployed [Email MCP Server](https://github.com/junioralive/email-mcp-for-cloudflare-workers). Nudge does not store mailbox credentials and does not poll inboxes in the background.
-
-## Privacy behavior
-
-- Opening Email loads message headers only: account, sender, subject, date, and flags.
-- Message bodies are fetched only after you open a message or explicitly ask the voice assistant to read it.
-- HTML is converted to plain text; remote images and attachment bytes are not returned.
-- Email content is not copied into D1 or Second Brain. Creating a task stores only the reviewed task text and an opaque message reference.
-- Gemini receives email data only during an explicit email request. It cannot send, archive, or change read state.
-
-## Cloudflare Access service identity
-
-Create a dedicated service token under Zero Trust → Access controls → Service credentials → Service Tokens. Name it `Nudge Email` and add it to the Email MCP Access application with a `Service Auth` policy.
-
-The hardened Email MCP integration recognizes that service-token Client ID and permits only:
-
-- account listing and inbox counts;
-- header-only inbox listing and search;
-- explicitly selected message and thread reads;
-- signed read/unread, archive, draft, and send operations.
-
-Account management, attachments, arbitrary moves, trash, and permanent deletion remain unavailable to Nudge.
-
-Set the Nudge Worker configuration:
+Email is an optional module inside the Nudge Worker. It shares one encrypted mailbox store and mail service between the responsive `/email` UI, Nudge voice tools, and the remote MCP endpoint:
 
 ```text
-EMAIL_MCP_URL=https://email.example.com
-EMAIL_ACCESS_CLIENT_ID=<secret>
-EMAIL_ACCESS_CLIENT_SECRET=<secret>
-EMAIL_ACTION_SIGNING_SECRET=<secret>
+https://<your-nudge-host>/email/mcp
 ```
 
-Set the matching Email MCP Worker secrets:
+The Email MCP tool names, schemas, annotations, and result formats remain compatible with the standalone Email MCP server. Existing ChatGPT and Claude connections must reconnect once to the new URL.
+
+## Authentication
+
+The main Nudge hostname is protected by a Cloudflare Access self-hosted application. The `/email/mcp*` path has a more-specific MCP application, a separate audience, owner-email Allow policy, email OTP, and Managed OAuth. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
+
+In ChatGPT or Claude, add `https://<your-nudge-host>/email/mcp` as a remote MCP server and complete the Cloudflare email OTP flow. Do not use the retired standalone endpoint after migration acceptance passes.
+
+## Configuration
+
+The setup wizard provisions or reuses:
+
+- `EMAIL_KV`: encrypted mailbox accounts and OAuth refresh tokens.
+- `CREDENTIAL_ENCRYPTION_KEY`: a base64 32-byte AES-GCM key. Existing deployments must reuse their current value; it must never be rotated automatically.
+- `MCP_OBJECT`: the Durable Object that owns Streamable HTTP MCP sessions.
+- `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, and `OUTLOOK_TENANT`: optional Microsoft Entra OAuth configuration.
+- `NUDGE_ACTION_SIGNING_SECRET`: short-lived, one-use UI approval tokens.
+
+The Microsoft Entra redirect URI is:
 
 ```text
-NUDGE_ACCESS_CLIENT_ID=<same service-token Client ID>
-NUDGE_ACTION_SIGNING_SECRET=<same action-signing secret>
+https://<your-nudge-host>/api/email/oauth/outlook/callback
 ```
 
-`npm run setup:cloudflare` can install these values after the service token exists.
+Keep the old redirect URI registered during the migration window, then remove it after the old Worker is retired.
 
-## Sending safety
+## Privacy and safety
 
-Voice can prepare a proposal but cannot create or send a mailbox draft. The proposal opens in Nudge for review. Saving creates an IMAP draft and returns a one-use, ten-minute send approval. Sending requires a separate visible button press and a same-origin authenticated request.
+- Inbox and search load headers only. Bodies are fetched only when a user opens a message or explicitly asks the voice assistant to read it.
+- HTML is converted to plain text; remote images and attachment bytes are not returned to the model.
+- Mailbox credentials, OAuth tokens, message bodies, and drafts stay in encrypted KV. They are never written to D1, browser storage, logs, Gemini context outside an explicit email request, or Second Brain.
+- Nudge voice uses an allowlist of safe email actions. Sending, archiving, and read-state changes require a visible, short-lived, action-specific approval.
+- Direct MCP clients retain the full standalone Email MCP tool set and safety annotations; Cloudflare Access remains the authentication boundary.
 
-Read/unread and archive approvals are also short-lived, signed, action-specific, and single-use.
+## Migration from standalone Email MCP
 
-## Multiple accounts
+1. Run `npm run setup:cloudflare` and provide the existing Email KV namespace ID and encryption key.
+2. Add the new Microsoft redirect URI while retaining the old one.
+3. Deploy the combined Worker and verify account listing, inbox headers, one explicit message read, and one reviewed send from both Nudge and an MCP client.
+4. Reconnect ChatGPT and Claude to `/email/mcp`.
+5. Keep the old Worker for rollback until production acceptance is complete, then revoke its Access application and retire it.
 
-The Email page defaults to a unified inbox and supports filtering by account. Partial failures do not hide messages from healthy accounts. Account credentials and OAuth refresh tokens remain encrypted inside the Email MCP deployment.
+## Account management
+
+Nudge exposes authenticated account routes for connecting Outlook through OAuth, adding custom IMAP/SMTP credentials, testing, reconnecting, editing, and removing accounts. Credentials are accepted only over same-origin HTTPS requests and are encrypted before KV storage.

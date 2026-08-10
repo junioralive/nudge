@@ -11,7 +11,6 @@ import {
   fetchCapabilities,
   fetchTasks,
   getSession,
-  login,
   logout,
   updateProfile,
   updateTask,
@@ -84,15 +83,19 @@ export default function App() {
 
   if (authenticated === null) return <div className="app-loading">Loading Nudge…</div>;
   if (!authenticated) {
-    return <LoginScreen onLogin={async (key) => { await login(key); setAuthenticated(true); }} />;
+    return <LoginScreen />;
   }
-  return <NudgeApp onLogout={async () => { await logout(); setAuthenticated(false); }} />;
+  return <NudgeApp onLogout={async () => {
+    const result = await logout();
+    setAuthenticated(false);
+    if (result?.logoutUrl) window.location.assign(result.logoutUrl);
+  }} />;
 }
 
 function NudgeApp({ onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [pushStatus, setPushStatus] = useState({ state: "loading", detail: "Checking this device…" });
-  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false });
+  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false, outlook: false });
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("today");
   const [sortByDue, setSortByDue] = useState(true);
@@ -354,7 +357,7 @@ function NudgeApp({ onLogout }) {
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view === "memories" ? <Suspense fallback={<div className="empty">Opening Second Brain…</div>}><MemoriesView activeWorkspace={activeWorkspace} /></Suspense>
-          : view === "email" ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} /></Suspense>
+          : view === "email" ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} /></Suspense>
           : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />

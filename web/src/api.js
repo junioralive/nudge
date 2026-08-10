@@ -26,6 +26,21 @@ export function fetchCapabilities() { return apiFetch("/api/capabilities"); }
 
 export function fetchEmailStatus() { return apiFetch("/api/email/status"); }
 export function fetchEmailAccounts() { return apiFetch("/api/email/accounts"); }
+export function startOutlookOAuth(displayName = "Outlook", accountId = "") {
+  return apiFetch("/api/email/oauth/outlook/start", { method: "POST", body: JSON.stringify({ displayName, ...(accountId ? { accountId } : {}) }) });
+}
+export function addEmailAccount(values) {
+  return apiFetch("/api/email/accounts", { method: "POST", body: JSON.stringify(values) });
+}
+export function updateEmailAccount(id, values) {
+  return apiFetch(`/api/email/accounts/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(values) });
+}
+export function removeEmailAccount(id) {
+  return apiFetch(`/api/email/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+export function testEmailAccount(id) {
+  return apiFetch(`/api/email/accounts/${encodeURIComponent(id)}/test`, { method: "POST" });
+}
 export function fetchEmailInbox(accountId = "", limit = 20) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (accountId) params.set("accountId", accountId);
@@ -55,10 +70,6 @@ export function archiveEmail(approval) {
 }
 export function createTaskFromEmail(values) {
   return apiFetch("/api/tasks/from-email", { method: "POST", body: JSON.stringify(values) });
-}
-
-export function login(key) {
-  return apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify({ key }) });
 }
 
 export function logout() {

@@ -76,11 +76,12 @@ npm run setup:cloudflare
 The setup wizard asks for:
 
 - Worker name and optional custom domain
-- Your display name, login password/token, timezone, assistant gender (`she` or `he`), initial workspaces, and optional Gemini/Second Brain credentials
-- Whether Gemini should be enabled
-- Whether Second Brain should be enabled and its URL
+- Your owner email, Cloudflare Access team domain, account ID, and temporary `Access: Apps and Policies Write` API token
+- Your display name, timezone, assistant gender (`she` or `he`), and initial workspaces
+- Optional Gemini, Second Brain, and Microsoft Entra credentials
+- An existing Email KV namespace ID when migrating an Email MCP deployment (otherwise one is created)
 
-It then creates or reuses D1, generates session and VAPID secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. Your login password is stored only as a Cloudflare secret and is never written to the repository.
+It then creates or reuses D1 and Email KV, provisions two Cloudflare Access applications, configures email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
@@ -108,11 +109,12 @@ For local secrets, copy `web/.dev.vars.example` to `web/.dev.vars` and use devel
 
 ## Configuration
 
-Required Worker secrets:
+Required Worker configuration:
 
-- `NUDGE_AUTH_KEY` — the single-user login key
-- `SESSION_SECRET` — generated automatically and used to sign authenticated sessions
+- `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, `EMAIL_MCP_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — configured by the setup wizard for Cloudflare Access
 - `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — generated automatically for Web Push delivery
+- `CREDENTIAL_ENCRYPTION_KEY` — generated for new Email KV stores; reuse the existing value during migration
+- `NUDGE_ACTION_SIGNING_SECRET` — generated for one-time browser email approvals
 
 Optional secrets:
 
@@ -120,7 +122,7 @@ Optional secrets:
 - `SECOND_BRAIN_URL` — connects your deployed Second Brain
 - `SECOND_BRAIN_TOKEN` — enables memory capture and recall
 
-Configuration variables include `APP_TIMEZONE`, `NUDGE_PROFILE_NAME`, and `VAPID_SUBJECT`. The app uses one maintained Gemini Live model. Assistant gender, voice, timezone, and display name are changed inside Nudge Settings.
+Configuration variables include `APP_TIMEZONE`, `NUDGE_PROFILE_NAME`, and `VAPID_SUBJECT`. The app uses one maintained Gemini Live model. Assistant gender, voice, timezone, and display name are changed inside Nudge Settings. `NUDGE_AUTH_KEY` and `SESSION_SECRET` are not used.
 
 ## Optional integrations
 
@@ -156,14 +158,34 @@ Without Second Brain, Nudge hides Memories and skips recall without delaying tas
 
 You can enable either integration independently, or use both together.
 
+### Email — inbox and MCP
+
+Email is embedded in the Nudge Worker. It uses the encrypted `EMAIL_KV` mailbox store and supports Outlook OAuth plus custom IMAP/SMTP accounts. Nudge never stores mailbox credentials or message bodies in D1, the browser, Gemini context outside an explicit request, or Second Brain.
+
+The permanent MCP endpoint is:
+
+```text
+https://<your-nudge-host>/email/mcp
+```
+
+The setup wizard creates a path-specific Cloudflare Access MCP application with Managed OAuth, 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow. Register this Microsoft Entra redirect URI:
+
+```text
+https://<your-nudge-host>/api/email/oauth/outlook/callback
+```
+
+Keep the old standalone Email MCP Worker online during migration. Reconnect MCP clients to the new endpoint only after inbox and reviewed-send acceptance tests pass.
+
 ## Security model
 
 Nudge is intentionally single-user and private by default.
 
 - All data APIs require authentication.
 - Browser mutations require same-origin requests.
-- Sessions use `HttpOnly`, `Secure`, `SameSite=Strict` cookies.
-- Login and voice endpoints are rate-limited.
+- Cloudflare Access validates the issuer, audience, expiry, and owner email on every request; browser access uses email OTP.
+- The main Nudge and `/email/mcp*` applications have separate audiences and 24-hour sessions.
+- Managed OAuth uses short-lived 15-minute MCP access tokens and 24-hour grant sessions.
+- Voice endpoints are rate-limited.
 - Service-worker caches contain application assets only, never authenticated API responses.
 - Secrets stay in Cloudflare Worker secrets and are never sent to frontend code.
 

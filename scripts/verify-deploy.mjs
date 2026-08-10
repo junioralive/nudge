@@ -1,37 +1,19 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
+const baseUrl = (process.argv[2] || "https://nudge.junioralive.workers.dev").replace(/\/$/, "");
+const assertion = process.env.CF_ACCESS_JWT_ASSERTION || "";
+const headers = assertion ? { "Cf-Access-Jwt-Assertion": assertion } : {};
 
-const projectRoot = path.resolve(import.meta.dirname, "..");
-const values = Object.fromEntries(
-  readFileSync(path.join(projectRoot, "web", ".dev.vars"), "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/))
-    .filter(Boolean)
-    .map((match) => [match[1], match[2]]),
-);
-
-async function verify(baseUrl) {
-  const login = await fetch(`${baseUrl}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Origin: baseUrl },
-    body: JSON.stringify({ key: values.NUDGE_AUTH_KEY }),
-  });
-  if (!login.ok) throw new Error(`${baseUrl} login returned ${login.status}`);
-  const cookie = login.headers.get("set-cookie")?.split(";", 1)[0] || "";
-  const [health, tasks] = await Promise.all([
-    fetch(`${baseUrl}/api/health`, { headers: { Cookie: cookie } }),
-    fetch(`${baseUrl}/api/tasks`, { headers: { Cookie: cookie } }),
-  ]);
-  const healthBody = await health.json();
-  const taskBody = await tasks.json();
-  if (!health.ok || !healthBody.ok || !healthBody.database || !healthBody.memory) {
-    throw new Error(`${baseUrl} dependency health failed`);
-  }
-  if (!tasks.ok || !Array.isArray(taskBody) || taskBody.length < 14) {
-    throw new Error(`${baseUrl} task migration verification failed`);
-  }
-  console.log(`Verified ${baseUrl}: authentication, D1, Second Brain, and ${taskBody.length} tasks healthy.`);
+const session = await fetch(`${baseUrl}/api/auth/session`, { headers });
+if (session.status === 401) {
+  console.log(`${baseUrl} is protected by Cloudflare Access. Complete an email OTP login, then rerun with CF_ACCESS_JWT_ASSERTION for an authenticated smoke test.`);
+  process.exit(0);
 }
-
-const url = process.argv[2] || "https://nudge.junioralive.workers.dev";
-await verify(url);
+if (!session.ok) throw new Error(`${baseUrl} auth session returned ${session.status}`);
+const [health, capabilities] = await Promise.all([
+  fetch(`${baseUrl}/api/health`, { headers }),
+  fetch(`${baseUrl}/api/capabilities`, { headers }),
+]);
+const healthBody = await health.json();
+const capabilityBody = await capabilities.json();
+if (!health.ok || !healthBody.database) throw new Error(`${baseUrl} dependency health failed`);
+console.log(`Verified ${baseUrl}: Access session, D1, capabilities, and Worker health.`);
+console.log(JSON.stringify({ capabilities: capabilityBody, health: { database: healthBody.database, memory: healthBody.memory } }, null, 2));

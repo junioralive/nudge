@@ -10,18 +10,16 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks for the Worker name, profile name, timezone, assistant pronouns, optional custom domain, initial workspaces, and optional Gemini, Second Brain, and Email MCP integrations.
+The setup wizard asks for the Worker name, owner email, Cloudflare Access team/account details, optional custom domain, profile settings, optional Gemini/Second Brain credentials, Microsoft Entra credentials, and an existing Email KV namespace ID when migrating.
 
-Email setup requires a Cloudflare Access service token created for the separately deployed Email MCP server. See [Email assistant](EMAIL.md).
-
-It provisions or reuses D1, generates the login/session/VAPID credentials, applies migrations, seeds the profile, and deploys the Worker. The generated login key is saved locally to `NUDGE_LOGIN_KEY.txt`; copy it into your password manager and do not commit it.
+It provisions or reuses D1 and Email KV, creates the main and path-specific Access applications and owner policies, enables email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds the profile, and deploys the Worker. The temporary Cloudflare API token is used in memory only and is never saved.
 
 If no custom domain is chosen, use the `workers.dev` URL printed at the end. If a custom domain is chosen, Cloudflare must have the domain in the same account and DNS must be available for the custom Worker domain.
 
 ## After deployment
 
 1. Open the printed URL.
-2. Sign in with the generated login key.
+2. Complete the Cloudflare Access email OTP.
 3. Open Notifications.
 4. Install Nudge as a PWA where desired.
 5. Click Enable notifications on every device.
@@ -47,7 +45,7 @@ Cloudflare’s Deploy to Workers button requires a public GitHub repository URL.
 https://deploy.workers.cloudflare.com/?url=https://github.com/YOUR_OWNER/nudge
 ```
 
-Until the public repository URL exists, the guided setup command is the equivalent one-command deployment path.
+Until the public repository URL exists, the guided setup command is the equivalent one-command deployment path. For a Git-connected deployment use the root commands `npm run cloudflare:build` and `npm run cloudflare:deploy`; do not run `npx wrangler deploy` from the workspace root because the Vite plugin must target the `web` application.
 
 ## Updating
 

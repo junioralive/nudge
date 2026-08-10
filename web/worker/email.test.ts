@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  callEmailTool,
   consumeEmailApproval,
   createEmailApproval,
   createEmailReference,
+  emailConfigured,
   EmailMcpError,
   readEmailReference,
   safeEmailList,
@@ -18,7 +20,7 @@ function testEnv() {
     return { success: true };
   });
   return {
-    SESSION_SECRET: "a-session-secret-long-enough-for-tests",
+    NUDGE_ACTION_SIGNING_SECRET: "a-session-secret-long-enough-for-tests",
     DB: {
       prepare: vi.fn(() => ({ bind: (nonce: string) => ({ run: () => run(nonce) }) })),
     },
@@ -26,6 +28,20 @@ function testEnv() {
 }
 
 describe("email privacy and action tokens", () => {
+  it("treats a valid empty email store as configured and healthy", async () => {
+    const env = {
+      EMAIL_KV: { get: vi.fn(async () => null) },
+      CREDENTIAL_ENCRYPTION_KEY: btoa("12345678901234567890123456789012"),
+    } as unknown as Env;
+    expect(emailConfigured(env)).toBe(true);
+    await expect(callEmailTool(env, "email_list_accounts")).resolves.toEqual({ accounts: [] });
+  });
+
+  it("rejects malformed email encryption keys at the capability gate", () => {
+    const env = { EMAIL_KV: { get: vi.fn() }, CREDENTIAL_ENCRYPTION_KEY: "not-a-key" } as unknown as Env;
+    expect(emailConfigured(env)).toBe(false);
+  });
+
   it("creates opaque message references and rejects tampering", async () => {
     const env = testEnv();
     const token = await createEmailReference(env, { accountId: "M1", folder: "INBOX", uid: 42, messageId: "message@example" });

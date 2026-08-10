@@ -1,14 +1,12 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Hono } from "hono";
 import {
+  accessLogoutUrl,
   authenticate,
-  clearSessionCookie,
   clientAddress,
-  createSession,
   requestOriginIsValid,
   requireSecrets,
-  secureEqual,
-  setSessionCookie,
+  verifyAccessRequest,
 } from "./auth";
 import { addTask, completeTask, deleteTask, getTask, listTasks, updateTask } from "./data";
 import { processDueReminders, retryFailedDeliveries } from "./reminders";
@@ -18,6 +16,7 @@ import {
   callEmailTool,
   consumeEmailApproval,
   createEmailApproval,
+  emailErrorCategory,
   emailConfigured,
   EmailMcpError,
   readEmailReference,
@@ -26,6 +25,8 @@ import {
   safeEmailList,
   safeEmailMessage,
 } from "./email";
+import { clearOauthCookie, emailService, emailStore, finishOutlookOAuth, outlookConfigured, parseAccountInput, startOutlookOAuth } from "./emailAccounts";
+import { emailMcpHandler, MyMCP } from "./email-core/mcp";
 import { runTool, toolDeclarations } from "./tools";
 import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
@@ -68,43 +69,26 @@ async function workspacePayload(env: Env) {
   };
 }
 
-app.post("/api/auth/login", async (c) => {
-  const origin = c.req.header("Origin");
-  if (origin && !requestOriginIsValid(c.req.raw)) return c.json({ error: "forbidden" }, 403);
-
-  const address = clientAddress(c);
-  if (c.env.LOGIN_RATE_LIMITER) {
-    const limit = await c.env.LOGIN_RATE_LIMITER.limit({ key: address });
-    if (!limit.success) return c.json({ error: "too many attempts" }, 429);
-  }
-
-  const body = await jsonBody<{ key?: string }>(c);
-  if (!body.key || !c.env.NUDGE_AUTH_KEY || !c.env.SESSION_SECRET || !(await secureEqual(body.key, c.env.NUDGE_AUTH_KEY))) {
-    return c.json({ error: "invalid key" }, 401);
-  }
-
-  setSessionCookie(c, await createSession(c.env.SESSION_SECRET));
-  return c.json({ authenticated: true });
-});
-
 app.get("/api/auth/session", async (c) => {
-  return c.json({ authenticated: Boolean(await authenticate(c)) });
+  const identity = await authenticate(c);
+  if (!identity) return c.json({ authenticated: false }, 401);
+  return c.json({ authenticated: true, email: identity.email, expiresAt: identity.exp ? identity.exp * 1000 : null });
 });
 
 app.use("/api/*", async (c, next) => {
-  const mode = await authenticate(c);
-  if (!mode) return c.json({ error: "unauthorized" }, 401);
-  c.set("authMode", mode);
+  const identity = await authenticate(c);
+  if (!identity) return c.json({ error: "unauthorized" }, 401);
+  c.set("authMode", identity.kind === "local" ? "local" : "access");
+  c.set("identity", identity);
 
-  if (mode === "cookie" && MUTATING_METHODS.has(c.req.method) && !requestOriginIsValid(c.req.raw)) {
+  if (MUTATING_METHODS.has(c.req.method) && !requestOriginIsValid(c.req.raw)) {
     return c.json({ error: "invalid origin" }, 403);
   }
   await next();
 });
 
 app.post("/api/auth/logout", (c) => {
-  clearSessionCookie(c);
-  return c.json({ authenticated: false });
+  return c.json({ authenticated: false, logoutUrl: accessLogoutUrl(c.req.raw) });
 });
 
 app.get("/api/health", async (c) => {
@@ -136,6 +120,7 @@ app.get("/api/capabilities", (c) => c.json({
   secondBrain: Boolean(c.env.SECOND_BRAIN_TOKEN && c.env.SECOND_BRAIN_URL),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
   email: emailConfigured(c.env),
+  outlook: outlookConfigured(c.env),
 }));
 
 function emailErrorResponse(c: any, error: unknown) {
@@ -149,19 +134,106 @@ function accountIds(value: unknown): string[] | undefined {
   return result.length ? result : undefined;
 }
 
+function publicAccount(account: { id: string; name: string; email: string; imap?: { host: string; port: number; secure: boolean }; smtp?: { host: string; port: number; secure: boolean }; auth?: { type: string } }) {
+  return {
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    imapHost: account.imap?.host,
+    imapPort: account.imap?.port,
+    imapSecure: account.imap?.secure,
+    smtpHost: account.smtp?.host,
+    smtpPort: account.smtp?.port,
+    smtpSecure: account.smtp?.secure,
+    authType: account.auth?.type,
+    canSend: Boolean(account.smtp),
+  };
+}
+
+app.post("/api/email/oauth/outlook/start", async (c) => {
+  if (!outlookConfigured(c.env)) return c.json({ error: "Outlook OAuth is not configured" }, 503);
+  const body = await jsonBody<{ displayName?: string; accountId?: string }>(c);
+  const displayName = cleanText(body.displayName, 160) || "Outlook";
+  try {
+    const result = await startOutlookOAuth(c.env, c.req.raw, displayName, cleanText(body.accountId, 160) || undefined);
+    c.header("Set-Cookie", result.cookie);
+    return c.json({ url: result.url });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Could not start Outlook OAuth" }, 400);
+  }
+});
+
+app.get("/api/email/oauth/outlook/callback", async (c) => {
+  try {
+    const result = await finishOutlookOAuth(c.env, c.req.raw);
+    c.header("Set-Cookie", result.clearCookie);
+    return c.redirect("/email?status=outlook_connected", 303);
+  } catch (error) {
+    c.header("Set-Cookie", clearOauthCookie(c.req.url.startsWith("https://")));
+    return c.redirect(`/email?email_error=${encodeURIComponent(error instanceof Error ? error.message : "Outlook authorization failed")}`, 303);
+  }
+});
+
+app.post("/api/email/accounts", async (c) => {
+  try {
+    const body = await jsonBody<Record<string, unknown>>(c);
+    const account = parseAccountInput(body);
+    const created = { id: crypto.randomUUID(), ...account };
+    await emailService(c.env).testAccount(created);
+    const saved = await emailStore(c.env).add(account);
+    return c.json({ account: publicAccount(saved) }, 201);
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.patch("/api/email/accounts/:id", async (c) => {
+  try {
+    const store = emailStore(c.env);
+    const existing = await store.get(c.req.param("id"));
+    const body = await jsonBody<Record<string, unknown>>(c);
+    const updated = { id: existing.id, ...parseAccountInput(body, existing.auth) };
+    await emailService(c.env).testAccount(updated);
+    await store.update(updated);
+    return c.json({ account: publicAccount(updated) });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.delete("/api/email/accounts/:id", async (c) => {
+  try {
+    await emailStore(c.env).remove(c.req.param("id"));
+    return c.json({ removed: true });
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
+app.post("/api/email/accounts/:id/test", async (c) => {
+  try {
+    return c.json(await emailService(c.env).testConnection(c.req.param("id")));
+  } catch (error) {
+    return emailErrorResponse(c, error);
+  }
+});
+
 app.get("/api/email/status", async (c) => {
   if (!emailConfigured(c.env)) return c.json({ configured: false, healthy: false, accountCount: 0 });
   try {
     const accounts = safeEmailAccounts(await callEmailTool(c.env, "email_list_accounts"));
     return c.json({ configured: true, healthy: true, accountCount: accounts.length });
   } catch (error) {
-    return c.json({ configured: true, healthy: false, accountCount: 0, error: safeEmailError(error) });
+    const errorCode = emailErrorCategory(error);
+    console.error("email_status_failed", { errorCode });
+    return c.json({ configured: true, healthy: false, accountCount: 0, error: safeEmailError(error), errorCode });
   }
 });
 
 app.get("/api/email/accounts", async (c) => {
   try {
-    return c.json({ accounts: safeEmailAccounts(await callEmailTool(c.env, "email_list_accounts")) });
+    if (!emailConfigured(c.env)) return c.json({ accounts: [] });
+    return c.json({ accounts: (await emailStore(c.env).list()).map(publicAccount) });
   } catch (error) {
     return emailErrorResponse(c, error);
   }
@@ -650,9 +722,18 @@ app.onError((error, c) => {
 app.notFound((c) => c.json({ error: "not found" }, 404));
 
 export { app };
+export { MyMCP };
 
 export default {
-  fetch: app.fetch,
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
+      if (!await verifyAccessRequest(request, env)) return new Response("Unauthorized", { status: 401 });
+      if (!emailConfigured(env)) return new Response("Email integration is not configured", { status: 503 });
+      return emailMcpHandler.fetch(request, env as any, ctx);
+    }
+    return app.fetch(request, env, ctx);
+  },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(processDueReminders(env));
   },

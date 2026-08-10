@@ -4,21 +4,26 @@ export interface RateLimiter {
 
 export interface Env {
   DB: D1Database;
-  LOGIN_RATE_LIMITER: RateLimiter;
   VOICE_RATE_LIMITER?: RateLimiter;
-  NUDGE_AUTH_KEY: string;
-  SESSION_SECRET: string;
-  SECOND_BRAIN_URL: string;
+  SECOND_BRAIN_URL?: string;
   SECOND_BRAIN_TOKEN?: string;
   GEMINI_API_KEY?: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT?: string;
   APP_TIMEZONE?: string;
-  EMAIL_MCP_URL?: string;
-  EMAIL_ACCESS_CLIENT_ID?: string;
-  EMAIL_ACCESS_CLIENT_SECRET?: string;
-  EMAIL_ACTION_SIGNING_SECRET?: string;
+  ACCESS_LOCAL_DEV?: string;
+  TEAM_DOMAIN?: string;
+  NUDGE_ACCESS_AUD?: string;
+  EMAIL_MCP_ACCESS_AUD?: string;
+  NUDGE_OWNER_EMAIL?: string;
+  EMAIL_KV?: KVNamespace;
+  MCP_OBJECT?: DurableObjectNamespace;
+  CREDENTIAL_ENCRYPTION_KEY?: string;
+  OUTLOOK_CLIENT_ID?: string;
+  OUTLOOK_CLIENT_SECRET?: string;
+  OUTLOOK_TENANT?: string;
+  NUDGE_ACTION_SIGNING_SECRET?: string;
 }
 
 export interface TaskRow {
@@ -70,9 +75,16 @@ export interface NotificationDeliveryRow {
   sequence: number;
 }
 
-export type AuthMode = "cookie" | "bearer";
+export type AuthMode = "access" | "local";
+
+export interface AccessIdentity {
+  kind: "access" | "local";
+  sub: string;
+  email: string;
+  exp?: number;
+}
 
 export type AppBindings = {
   Bindings: Env;
-  Variables: { authMode: AuthMode };
+  Variables: { authMode: AuthMode; identity: AccessIdentity };
 };

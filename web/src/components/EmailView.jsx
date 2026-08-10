@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowLeft, CheckCircle2, ChevronRight, Circle, Inbox, LoaderCircle, Mail, RefreshCw, Search, SquareCheckBig, X } from "lucide-react";
+import { Archive, ArrowLeft, CheckCircle2, ChevronRight, Circle, Inbox, LoaderCircle, Mail, RefreshCw, Search, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
+  addEmailAccount,
   createTaskFromEmail,
   fetchEmailAccounts,
   fetchEmailInbox,
   fetchEmailMessage,
   searchEmail,
+  removeEmailAccount,
+  startOutlookOAuth,
+  testEmailAccount,
+  updateEmailAccount,
   updateEmailMessageState,
 } from "../api.js";
 import EmailDraftDialog from "./EmailDraftDialog.jsx";
@@ -22,7 +27,7 @@ function senderName(value) {
   return String(value || "Unknown sender").replace(/\s*<[^>]+>\s*$/, "").replace(/^"|"$/g, "") || value;
 }
 
-export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated }) {
+export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated, outlookConfigured = false }) {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
   const [messages, setMessages] = useState([]);
@@ -35,12 +40,23 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
   const [compose, setCompose] = useState(null);
   const [taskDraft, setTaskDraft] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: "", email: "", imapHost: "", imapPort: "993", password: "", smtpHost: "", smtpPort: "465" });
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [accountStatus, setAccountStatus] = useState("");
+  const [editingAccountId, setEditingAccountId] = useState("");
 
   const unread = useMemo(() => messages.filter((item) => !item.seen).length, [messages]);
 
-  async function loadInbox(nextAccount = accountId) {
+  async function loadInbox(nextAccount = accountId, connectedAccounts = accounts) {
     setLoading(true);
     setError("");
+    if (!connectedAccounts.length) {
+      setMessages([]);
+      setSummary({ total: 0, failed: 0 });
+      setLoading(false);
+      return;
+    }
     try {
       const result = await fetchEmailInbox(nextAccount, 25);
       setMessages(result.messages || []);
@@ -52,10 +68,23 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
     }
   }
 
+  async function loadAccounts() {
+    const result = await fetchEmailAccounts();
+    setAccounts(result.accounts || []);
+    return result.accounts || [];
+  }
+
   useEffect(() => {
-    Promise.all([fetchEmailAccounts(), fetchEmailInbox("", 25)])
-      .then(([accountResult, inboxResult]) => {
-        setAccounts(accountResult.accounts || []);
+    fetchEmailAccounts()
+      .then(async (accountResult) => {
+        const connected = accountResult.accounts || [];
+        setAccounts(connected);
+        if (!connected.length) {
+          setMessages([]);
+          setSummary({ total: 0, failed: 0 });
+          return;
+        }
+        const inboxResult = await fetchEmailInbox("", 25);
         setMessages(inboxResult.messages || []);
         setSummary({ total: inboxResult.total || 0, failed: inboxResult.failed || 0 });
       })
@@ -128,16 +157,104 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
     finally { setActionBusy(false); }
   }
 
+  async function connectOutlook() {
+    setAccountBusy(true);
+    setAccountStatus("");
+    try {
+      const result = await startOutlookOAuth("Outlook");
+      window.location.assign(result.url);
+    } catch (requestError) {
+      setAccountStatus(requestError.message);
+      setAccountBusy(false);
+    }
+  }
+
+  function editAccount(account) {
+    setEditingAccountId(account.id);
+    setAccountForm({
+      name: account.name || "",
+      email: account.email || "",
+      imapHost: account.imapHost || "",
+      imapPort: String(account.imapPort || 993),
+      password: "",
+      smtpHost: account.smtpHost || "",
+      smtpPort: String(account.smtpPort || 465),
+    });
+    setAccountStatus("");
+  }
+
+  async function reconnectOutlook(account) {
+    setAccountBusy(true);
+    setAccountStatus("");
+    try {
+      const result = await startOutlookOAuth(account.name || "Outlook", account.id);
+      window.location.assign(result.url);
+    } catch (requestError) {
+      setAccountStatus(requestError.message);
+      setAccountBusy(false);
+    }
+  }
+
+  async function addAccount(event) {
+    event.preventDefault();
+    setAccountBusy(true);
+    setAccountStatus("");
+    try {
+      const values = { ...accountForm, imapPort: Number(accountForm.imapPort), smtpPort: accountForm.smtpHost ? Number(accountForm.smtpPort) : undefined };
+      if (editingAccountId) await updateEmailAccount(editingAccountId, values);
+      else await addEmailAccount(values);
+      const connected = await loadAccounts();
+      setAccountForm({ name: "", email: "", imapHost: "", imapPort: "993", password: "", smtpHost: "", smtpPort: "465" });
+      setAccountStatus(editingAccountId ? "Account updated." : "Account connected.");
+      setEditingAccountId("");
+      await loadInbox(accountId, connected);
+    } catch (requestError) {
+      setAccountStatus(requestError.message);
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
+  async function testAccount(id) {
+    setAccountBusy(true);
+    setAccountStatus("");
+    try {
+      await testEmailAccount(id);
+      setAccountStatus("Connection healthy.");
+    } catch (requestError) {
+      setAccountStatus(requestError.message);
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
+  async function removeAccount(id) {
+    if (!window.confirm("Remove this email account from Nudge?")) return;
+    setAccountBusy(true);
+    try {
+      await removeEmailAccount(id);
+      const connected = await loadAccounts();
+      const nextAccount = accountId === id ? "" : accountId;
+      setAccountId(nextAccount);
+      await loadInbox(nextAccount, connected);
+      setAccountStatus("Account removed.");
+    } catch (requestError) {
+      setAccountStatus(requestError.message);
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
   return <section className="email-view">
     <div className="email-overview">
       <div><Inbox size={18} /><span><strong>{summary.total}</strong><small>Inbox messages</small></span></div>
       <div><Circle size={18} /><span><strong>{unread}</strong><small>Unread in view</small></span></div>
-      <div><SquareCheckBig size={18} /><span><strong>{accounts.length}</strong><small>Connected accounts</small></span></div>
+      <div className="email-account-card"><SquareCheckBig size={18} /><span><strong>{accounts.length}</strong><small>Connected accounts</small><button type="button" onClick={() => { setAccountsOpen(true); setAccountStatus(""); }}>Manage accounts</button></span></div>
     </div>
 
     <div className="email-toolbar">
-      <form onSubmit={submitSearch}><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sender, subject, or keywords" /><button type="submit">Search</button></form>
-      <button type="button" className="email-compose-btn" onClick={() => setCompose({ accountId: accountId || accounts[0]?.id || "" })}><Mail size={16} /><span>New email</span></button>
+      <form onSubmit={submitSearch}><Search size={17} /><input disabled={!accounts.length} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sender, subject, or keywords" /><button type="submit" disabled={!accounts.length}>Search</button></form>
+      <button type="button" className="email-compose-btn" disabled={!accounts.length} onClick={() => setCompose({ accountId: accountId || accounts[0]?.id || "" })}><Mail size={16} /><span>New email</span></button>
       <select value={accountId} onChange={(event) => { setAccountId(event.target.value); setQuery(""); loadInbox(event.target.value); }}>
         <option value="">All accounts</option>
         {accounts.map((account) => <option value={account.id} key={account.id}>{account.name} · {account.email}</option>)}
@@ -154,7 +271,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
           <span className="skeleton-circle" /><span className="skeleton-line sender" /><span className="skeleton-line subject" /><span className="skeleton-line date" />
         </div>)}
       </div>
-        : messages.length === 0 ? <div className="email-empty"><Inbox size={24} /><h3>No messages found</h3><p>Try another account or search.</p></div>
+        : messages.length === 0 ? <div className="email-empty"><Inbox size={24} /><h3>{accounts.length ? "No messages found" : "Connect an account"}</h3><p>{accounts.length ? "Try another account or search." : "Add an IMAP account to bring your inbox into Nudge."}</p>{!accounts.length && <button type="button" onClick={() => { setAccountsOpen(true); setAccountStatus(""); }}>Manage accounts</button>}</div>
           : messages.map((item) => <button type="button" className={`email-row ${item.seen ? "seen" : "unread"}`} key={item.ref} onClick={() => openMessage(item)}>
             <span className="email-read-dot" />
             <span className="email-row-from">{senderName(item.from)}</span>
@@ -202,5 +319,26 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
     </section>}
 
     {compose && <EmailDraftDialog initial={compose} onClose={() => setCompose(null)} onSent={() => loadInbox()} />}
+
+    {accountsOpen && <section className="email-dialog-layer" role="dialog" aria-modal="true" aria-labelledby="email-accounts-title" onMouseDown={(event) => event.target === event.currentTarget && setAccountsOpen(false)}>
+      <section className="email-account-dialog">
+        <header className="floating-dialog-head"><div><SquareCheckBig size={18} /><h2 id="email-accounts-title">Email accounts</h2></div><button type="button" onClick={() => setAccountsOpen(false)} aria-label="Close account manager"><X size={18} /></button></header>
+        <div className="email-account-body">
+          {accounts.map((account) => <div className="email-account-row" key={account.id}><div><strong>{account.name}</strong><span>{account.email}</span></div><div><button type="button" onClick={() => testAccount(account.id)} disabled={accountBusy}>Test</button><button type="button" onClick={() => editAccount(account)} disabled={accountBusy}>Edit</button>{outlookConfigured && account.authType === "oauth2" && <button type="button" onClick={() => reconnectOutlook(account)} disabled={accountBusy}>Reconnect</button>}<button type="button" className="danger" onClick={() => removeAccount(account.id)} disabled={accountBusy}><Trash2 size={14} /></button></div></div>)}
+          {!accounts.length && <p className="email-account-empty">No accounts connected yet.</p>}
+          {outlookConfigured && <div className="email-account-connect"><button type="button" onClick={connectOutlook} disabled={accountBusy}>Connect Outlook</button><span>or add an IMAP account below</span></div>}
+          <form className="email-account-form" onSubmit={addAccount}>
+            <h3>{editingAccountId ? "Edit custom IMAP / SMTP" : "Add custom IMAP / SMTP"}</h3>
+            <label><span>Name</span><input required value={accountForm.name} onChange={(event) => setAccountForm({ ...accountForm, name: event.target.value })} placeholder="Work mailbox" /></label>
+            <label><span>Email</span><input required type="email" value={accountForm.email} onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })} placeholder="you@example.com" /></label>
+            <label><span>IMAP host</span><input required value={accountForm.imapHost} onChange={(event) => setAccountForm({ ...accountForm, imapHost: event.target.value })} placeholder="imap.example.com" /></label>
+            <label><span>Password {editingAccountId && <em>optional</em>}</span><input required={!editingAccountId} type="password" autoComplete="new-password" value={accountForm.password} onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })} /></label>
+            <label><span>SMTP host <em>optional</em></span><input value={accountForm.smtpHost} onChange={(event) => setAccountForm({ ...accountForm, smtpHost: event.target.value })} placeholder="smtp.example.com" /></label>
+            <button className="primary" type="submit" disabled={accountBusy || !accountForm.name || !accountForm.email || !accountForm.imapHost || (!editingAccountId && !accountForm.password)}>{accountBusy ? "Saving…" : editingAccountId ? "Save account" : "Add account"}</button>
+          </form>
+          {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
+        </div>
+      </section>
+    </section>}
   </section>;
 }

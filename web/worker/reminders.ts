@@ -20,7 +20,7 @@ async function createDueDeliveries(env: Env): Promise<void> {
     `INSERT OR IGNORE INTO task_notification_deliveries (task_id, endpoint, device_id, sequence)
      SELECT t.id, s.endpoint, s.device_id, t.notification_count
      FROM tasks t CROSS JOIN push_subscriptions s
-     WHERE t.done_at IS NULL AND t.notified_at IS NULL AND t.due_at IS NOT NULL
+     WHERE t.done_at IS NULL AND t.due_at IS NOT NULL
        AND ((t.notified_at IS NULL AND t.due_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
          OR (t.notified_at IS NOT NULL AND t.next_notification_at IS NOT NULL AND t.next_notification_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              AND t.notification_count < t.follow_up_max_count + 1))
