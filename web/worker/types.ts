@@ -19,7 +19,6 @@ export interface Env {
   ACCESS_LOCAL_DEV?: string;
   TEAM_DOMAIN?: string;
   NUDGE_ACCESS_AUD?: string;
-  MCP_ACCESS_AUD?: string;
   EMAIL_KV?: KVNamespace;
   MCP_OBJECT?: DurableObjectNamespace;
   NUDGE_ENCRYPTION_KEY?: string;

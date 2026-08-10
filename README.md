@@ -88,7 +88,7 @@ The setup wizard asks for:
 - Your owner email and a temporary Cloudflare API token with Access application/policy write permission
 - Optional flags: `--domain`, `--worker-name`, and `--redirect-uri`
 
-It then creates or reuses the `nudge-*` D1, KV, and Vectorize resources, provisions one Cloudflare Access application for Nudge and one shared Managed OAuth application for both MCP paths, generates VAPID/encryption/action secrets, applies migrations, and deploys. First-login onboarding collects your profile. Gemini and Microsoft Outlook are optional Settings integrations. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
+It then creates or reuses the `nudge-*` D1, KV, and Vectorize resources, provisions one Cloudflare Access application for Nudge with Managed OAuth for both MCP paths, generates VAPID/encryption/action secrets, applies migrations, and deploys. First-login onboarding collects your profile. Gemini and Microsoft Outlook are optional Settings integrations. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
@@ -133,7 +133,7 @@ Optional secrets:
 
 - `GEMINI_API_KEY` — enables the voice assistant
 
-Configuration variables include `VAPID_SUBJECT`, `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, `MCP_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL`. The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. `NUDGE_AUTH_KEY` and `SESSION_SECRET` are not used.
+Configuration variables include `VAPID_SUBJECT`, `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL`. The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. `NUDGE_AUTH_KEY`, `SESSION_SECRET`, and a separate MCP audience are not used.
 
 ## Optional integrations
 
@@ -191,7 +191,7 @@ Nudge is intentionally single-user and private by default.
 - All data APIs require authentication.
 - Browser mutations require same-origin requests.
 - Cloudflare Access validates the issuer, audience, expiry, and owner email on every request; browser access uses email OTP.
-- The browser application uses `NUDGE_ACCESS_AUD`; both MCP paths share the isolated `MCP_ACCESS_AUD`.
+- Browser and MCP routes use the same owner-only `NUDGE_ACCESS_AUD`.
 - Managed OAuth uses short-lived 15-minute MCP access tokens and 24-hour grant sessions.
 - Voice endpoints are rate-limited.
 - Service-worker caches contain application assets only, never authenticated API responses.

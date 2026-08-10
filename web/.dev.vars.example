@@ -3,7 +3,6 @@ ACCESS_LOCAL_DEV=true
 NUDGE_OWNER_EMAIL=owner@example.com
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 NUDGE_ACCESS_AUD=local-development
-MCP_ACCESS_AUD=local-development
 NUDGE_ENCRYPTION_KEY=base64-encoded-32-byte-key
 NUDGE_ACTION_SIGNING_SECRET=replace-with-a-random-action-secret
 VAPID_PUBLIC_KEY=replace-with-vapid-public-key

@@ -18,23 +18,15 @@ describe("Cloudflare Access authentication", () => {
     } as any)).resolves.toBeNull();
   });
 
-  it("uses the main audience while an existing installation migrates", async () => {
+  it("uses the main audience for Email MCP", async () => {
     expect(expectedAccessAudience(new Request("https://nudge.example.com/email/mcp"), {
       NUDGE_ACCESS_AUD: "nudge-audience",
     } as any)).toBe("nudge-audience");
   });
 
-  it("prefers the shared MCP audience when configured", () => {
-    expect(expectedAccessAudience(new Request("https://nudge.example.com/email/mcp"), {
-      NUDGE_ACCESS_AUD: "nudge-audience",
-      MCP_ACCESS_AUD: "mcp-audience",
-    } as any)).toBe("mcp-audience");
-  });
-
-  it("uses the same isolated audience for Email and Memories MCP", () => {
+  it("uses the main audience for Memories MCP", () => {
     expect(expectedAccessAudience(new Request("https://nudge.example.com/memories/mcp"), {
       NUDGE_ACCESS_AUD: "nudge-audience",
-      MCP_ACCESS_AUD: "mcp-audience",
-    } as any)).toBe("mcp-audience");
+    } as any)).toBe("nudge-audience");
   });
 });

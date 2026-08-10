@@ -143,7 +143,7 @@ app.get("/api/capabilities", async (c) => {
   gemini: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY),
   secondBrain: memoriesConfigured(c.env),
   memories: memoriesConfigured(c.env),
-  memoriesMcp: Boolean((c.env.MCP_ACCESS_AUD || c.env.NUDGE_ACCESS_AUD) && c.env.MEMORY_MCP_OBJECT),
+  memoriesMcp: Boolean(c.env.NUDGE_ACCESS_AUD && c.env.MEMORY_MCP_OBJECT),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
   email: emailConfigured(c.env),
   outlook: outlookConfigured(c.env) || Boolean(microsoft?.clientId && microsoft?.clientSecret),

@@ -10,7 +10,7 @@ The Email MCP tool names, schemas, annotations, and result formats remain compat
 
 ## Authentication
 
-The Nudge hostname is protected by a browser Access application covering `/*`. A second shared MCP application protects `/email/mcp*` and `/memories/mcp*` with one `MCP_ACCESS_AUD`. Both use the same owner-email policy and OTP identity. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
+The Nudge hostname is protected by one owner-only Access application covering `/*`. The same application provides Managed OAuth for `/email/mcp` and `/memories/mcp` using `NUDGE_ACCESS_AUD`. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
 
 The Managed OAuth redirect allowlist must include `https://chatgpt.com/*` for ChatGPT and `https://claude.ai/*` for Claude. Cloudflare rejects dynamic client registration with `invalid_client_metadata` when the requesting client's callback is not allowed.
 

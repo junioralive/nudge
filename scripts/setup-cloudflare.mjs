@@ -313,7 +313,7 @@ async function main() {
     NUDGE_ACCESS_AUD: config.vars?.NUDGE_ACCESS_AUD || "pending-access-setup",
     NUDGE_OWNER_EMAIL: ownerEmail,
   };
-  for (const name of ["APP_TIMEZONE", "NUDGE_PROFILE_NAME", "NUDGE_ASSISTANT_GENDER", "SECOND_BRAIN_URL", "EMAIL_MCP_ACCESS_AUD", "MEMORIES_MCP_ACCESS_AUD"]) delete config.vars[name];
+  for (const name of ["APP_TIMEZONE", "NUDGE_PROFILE_NAME", "NUDGE_ASSISTANT_GENDER", "SECOND_BRAIN_URL", "MCP_ACCESS_AUD", "EMAIL_MCP_ACCESS_AUD", "MEMORIES_MCP_ACCESS_AUD"]) delete config.vars[name];
   await ensureDatabase(workerName, config);
   const kvId = await ensureEmailKv(workerName, config, undefined);
   const memories = await ensureMemories(workerName, config);
@@ -339,22 +339,21 @@ async function main() {
   config.vars.TEAM_DOMAIN = teamDomain;
   updateWrangler(config);
 
-  console.log("Configuring Cloudflare Access applications…");
-  const nudgeAud = await ensureAccessApplication(apiToken, accountId, hostname, [`${hostname}/*`], "self_hosted", ownerEmail, false, "Nudge");
-  const mcpAud = await ensureAccessApplication(
+  console.log("Configuring Cloudflare Access and Managed OAuth…");
+  const nudgeAud = await ensureAccessApplication(
     apiToken,
     accountId,
     hostname,
-    [`${hostname}/email/mcp*`, `${hostname}/memories/mcp*`],
+    [`${hostname}/*`],
     "self_hosted",
     ownerEmail,
     true,
-    "Nudge MCP",
+    "Nudge",
   );
   config.vars.NUDGE_ACCESS_AUD = nudgeAud;
-  config.vars.MCP_ACCESS_AUD = mcpAud;
   config.routes = finalRoutes;
   delete config.keep_vars;
+  delete config.vars.MCP_ACCESS_AUD;
   delete config.vars.EMAIL_MCP_ACCESS_AUD;
   delete config.vars.MEMORIES_MCP_ACCESS_AUD;
   updateWrangler(config);
