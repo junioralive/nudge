@@ -33,6 +33,8 @@ requireValue(durableObjects.has("MCP_OBJECT") && durableObjects.has("MEMORY_MCP_
 requireValue(config.ai?.binding === "AI", "Workers AI binding is required");
 requireValue(workerFirst.has("/api/*") && workerFirst.has("/email/mcp") && workerFirst.has("/memories/mcp"), "API and MCP routes must run through the Worker");
 requireValue(pkg.scripts?.build && pkg.scripts?.deploy && pkg.scripts?.["setup:cloudflare"], "Cloudflare build, deploy, and guided setup scripts are required");
+requireValue(pkg.scripts?.deploy === "node scripts/deploy-cloudflare.mjs", "npm run deploy must use the resource, secret, and migration deployment wrapper");
+requireValue(pkg.scripts?.["cloudflare:deploy"] === "npm run deploy", "cloudflare:deploy must delegate to the safe deployment wrapper");
 for (const binding of ["DB", "MEMORY_DB", "EMAIL_KV", "MEMORY_CONFIG_KV", "MEMORY_VECTORIZE"]) {
   requireValue(Boolean(pkg.cloudflare?.bindings?.[binding]?.description), `${binding} needs a Deploy-button description`);
 }

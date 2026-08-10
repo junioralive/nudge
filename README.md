@@ -63,9 +63,7 @@ flowchart LR
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge)
 
-The button clones the repository, provisions both D1 databases, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. The deploy script creates the two consistently named KV namespaces automatically because Wrangler's Deploy form cannot assign different default names to multiple KV bindings. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
-
-Nudge still keeps encrypted Email credentials in `<worker-name>-email` and Memories configuration in `<worker-name>-memories-config`; users no longer need to create or rename either namespace in the Deploy form.
+The button clones the repository, provisions both D1 databases, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. Cloudflare shows two KV fields but cannot derive separate default names for them. For a new `nudge` installation, name the first KV `nudge-email` and the second `nudge-memories-config`. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
 
 The button cannot create Cloudflare Zero Trust Access applications or owner-email OTP policies. The first infrastructure deployment therefore stays securely fail-closed until you finish the guided Access step from the generated repository:
 
@@ -96,14 +94,18 @@ If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
 #### Cloudflare Workers Builds
 
-For a Git-connected deployment, keep the repository root as `/` and set these two commands in **Settings → Builds → Build configurations**:
+The **Connect repository to Worker** flow is different from the Deploy button: it does not show D1, KV, or Vectorize selectors. Nudge's deploy script provisions or reuses those resources during the build instead.
+
+For a Git-connected deployment or a fork, keep the repository root as `/` and replace Cloudflare's default `npx wrangler deploy` command with:
 
 ```text
-Build command:  npm run cloudflare:build
-Deploy command: npm run cloudflare:deploy
+Build command:  (leave blank)
+Deploy command: npm run deploy
 ```
 
-The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The Deploy form shows two distinct KV bindings: use `nudge-email` for the first (`EMAIL_KV`) and `nudge-memories-config` for the second (`MEMORY_CONFIG_KV`). Keep the build and deploy commands above so Vite generates the final Worker bundle, validates or provisions every named resource, generates missing deployment secrets, deploys it, and applies both task and Memories migrations.
+Do not accept `npx wrangler deploy` for Nudge. It bypasses Nudge's generated-secret checks and migration runner. `npm run deploy` performs the Vite build itself, provisions or reuses both KV namespaces and databases, generates missing encryption/action/VAPID secrets, deploys the Worker, and applies both task and Memories migrations.
+
+The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The Deploy-button form shows two distinct KV bindings: use `nudge-email` for the first (`EMAIL_KV`) and `nudge-memories-config` for the second (`MEMORY_CONFIG_KV`).
 
 Cloudflare treats values sourced from `.dev.vars.example` as encrypted Worker-secret inputs. Nudge intentionally has no root `.dev.vars.example`: encryption, action-signing, and VAPID secrets are generated during deployment, while browser login is Cloudflare Access email OTP rather than an application password. Local-only examples remain under `web/.dev.vars.example` and never enter the Deploy form.
 
