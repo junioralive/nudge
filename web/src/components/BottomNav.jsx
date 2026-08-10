@@ -1,4 +1,4 @@
-import { Bell, Brain, Home, Mail, Plus, Puzzle, X } from "lucide-react";
+import { Bell, Brain, CalendarDays, Home, Mail, Plus, Puzzle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import Logo from "./Logo.jsx";
 
@@ -32,6 +32,7 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
           {capabilities.email && <button className={view === "email" ? "active" : ""} onClick={() => navigate("email")} aria-label="Email"><Mail size={18} /></button>}
         </> : <>
           <button className={view === "home" ? "active" : ""} onClick={() => navigate("home")} aria-label="Home"><Home size={19} /></button>
+          <button className={view === "calendar" ? "active" : ""} onClick={() => navigate("calendar")} aria-label="Calendar"><CalendarDays size={19} /></button>
           <button className={view === "notifications" ? "active" : ""} onClick={() => navigate("notifications")} aria-label="Notifications"><Bell size={19} /></button>
           {talkButton}
           <button className="add-btn" onClick={onAdd} aria-label={addOpen ? "Close add task" : "Add task"}>{addOpen ? <X size={19} /> : <Plus size={19} />}</button>

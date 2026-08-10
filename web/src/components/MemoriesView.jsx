@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Brain, Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { createMemory, deleteMemory, fetchRecentMemories, searchMemories } from "../api.js";
 
 function entriesFrom(response) {
@@ -90,10 +90,6 @@ export default function MemoriesView({ activeWorkspace }) {
 
   return (
     <div className="memories-view">
-      <header className="memories-head">
-        <div className="memories-title"><Brain size={22} /><div><h2>Second Brain</h2><p>{activeWorkspace} memories</p></div></div>
-      </header>
-
       <form className="memory-capture" onSubmit={remember}>
         <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="What should Nudge remember?" />
         <button disabled={saving || !draft.trim()}><Plus size={17} /> {saving ? "Saving…" : "Remember"}</button>

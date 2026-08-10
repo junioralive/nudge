@@ -129,11 +129,6 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
   }
 
   return <section className="email-view">
-    <header className="email-view-head">
-      <div><span className="email-kicker"><Mail size={14} /> Private inbox</span><h1>Email</h1><p>Headers load on demand. Nudge reads a message only when you open it.</p></div>
-      <button type="button" className="email-compose-btn" onClick={() => setCompose({ accountId: accountId || accounts[0]?.id || "" })}><Mail size={16} /> New email</button>
-    </header>
-
     <div className="email-overview">
       <div><Inbox size={18} /><span><strong>{summary.total}</strong><small>Inbox messages</small></span></div>
       <div><Circle size={18} /><span><strong>{unread}</strong><small>Unread in view</small></span></div>
@@ -142,6 +137,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
 
     <div className="email-toolbar">
       <form onSubmit={submitSearch}><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sender, subject, or keywords" /><button type="submit">Search</button></form>
+      <button type="button" className="email-compose-btn" onClick={() => setCompose({ accountId: accountId || accounts[0]?.id || "" })}><Mail size={16} /><span>New email</span></button>
       <select value={accountId} onChange={(event) => { setAccountId(event.target.value); setQuery(""); loadInbox(event.target.value); }}>
         <option value="">All accounts</option>
         {accounts.map((account) => <option value={account.id} key={account.id}>{account.name} · {account.email}</option>)}
