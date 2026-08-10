@@ -10,16 +10,16 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks only for the owner email and a temporary Cloudflare API token. Use `--domain`, `--worker-name`, or `--redirect-uri` for advanced deployments.
+The setup wizard first offers Nudge Key or Cloudflare Zero Trust. Key mode asks for a masked private key of at least 15 characters and needs no Access account. Zero Trust asks for the owner email and a temporary Cloudflare API token. Use `--domain`, `--worker-name`, or `--redirect-uri` for advanced deployments.
 
-It provisions or reuses consistently named `nudge-*` resources, creates one browser Access application and one shared Managed OAuth application for both MCP paths, generates VAPID/encryption/action secrets, applies migrations, and deploys the Worker. The temporary Cloudflare API token is used in memory only and is never saved.
+It provisions or reuses consistently named `nudge-*` resources, generates VAPID/encryption/action secrets, applies migrations, and deploys. Access applications are created only for Zero Trust. Key mode supplies Nudge's built-in scoped OAuth for both MCP paths.
 
 If no custom domain is chosen, use the `workers.dev` URL printed at the end. If a custom domain is chosen, Cloudflare must have the domain in the same account and DNS must be available for the custom Worker domain.
 
 ## After deployment
 
 1. Open the printed URL.
-2. Complete the Cloudflare Access email OTP.
+2. Enter the Nudge key, or complete Cloudflare Access email OTP, according to the selected mode.
 3. Open Notifications.
 4. Install Nudge as a PWA where desired.
 5. Click Enable notifications on every device.

@@ -10,11 +10,16 @@ The Email MCP tool names, schemas, annotations, and result formats remain compat
 
 ## Authentication
 
-The Nudge hostname is protected by one owner-only Access application covering `/*`. The same application provides Managed OAuth for `/email/mcp` and `/memories/mcp` using `NUDGE_ACCESS_AUD`. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
+Nudge supports two authentication modes:
+
+- **Nudge Key** uses the branded key login for the browser and Nudge's built-in PKCE OAuth server for MCP clients. The master key is never sent to ChatGPT or Claude.
+- **Cloudflare Access** uses owner-only email OTP for the browser and Managed OAuth for MCP clients.
+
+In Access mode, the Nudge hostname is protected by one owner-only Access application covering `/*` and uses `NUDGE_ACCESS_AUD`. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
 
 The Managed OAuth redirect allowlist must include `https://chatgpt.com/*` for ChatGPT and `https://claude.ai/*` for Claude. Cloudflare rejects dynamic client registration with `invalid_client_metadata` when the requesting client's callback is not allowed.
 
-In ChatGPT or Claude, add `https://<your-nudge-host>/email/mcp` as a remote MCP server and complete the Cloudflare email OTP flow. Do not use the retired standalone endpoint after migration acceptance passes.
+In ChatGPT or Claude, add `https://<your-nudge-host>/email/mcp` as a remote MCP server. Complete either the Nudge Key approval screen or the Cloudflare email OTP flow, according to the selected authentication mode.
 
 ## Configuration
 
@@ -40,7 +45,7 @@ Keep the old redirect URI registered during the migration window, then remove it
 - HTML is converted to plain text; remote images and attachment bytes are not returned to the model.
 - Mailbox credentials, OAuth tokens, message bodies, and drafts stay in encrypted KV. They are never written to D1, browser storage, logs, Gemini context outside an explicit email request, or Second Brain.
 - Nudge voice uses an allowlist of safe email actions. Sending, archiving, and read-state changes require a visible, short-lived, action-specific approval.
-- Direct MCP clients retain the full standalone Email MCP tool set and safety annotations; Cloudflare Access remains the authentication boundary.
+- Direct MCP clients retain the full standalone Email MCP tool set and safety annotations; the selected Nudge Key or Cloudflare Access mode remains the authentication boundary.
 
 ## Migration from standalone Email MCP
 

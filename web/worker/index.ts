@@ -3,11 +3,17 @@ import { Hono } from "hono";
 import {
   accessLogoutUrl,
   authenticate,
+  authConfigurationError,
   clientAddress,
+  clearKeySessionCookie,
+  constantTimeKeyMatches,
+  createKeySession,
+  keySessionCookie,
   requestOriginIsValid,
   requireSecrets,
-  verifyAccessRequest,
+  resolvedAuthModeForResponse,
 } from "./auth";
+import { authenticateMcpRequest, handleKeyOAuthRequest, mcpUnauthorized } from "./keyOAuth";
 import { addTask, completeTask, deleteTask, getTask, listTasks, updateTask } from "./data";
 import { processDueReminders, retryFailedDeliveries } from "./reminders";
 import {
@@ -100,24 +106,44 @@ async function workspacePayload(env: Env) {
 }
 
 app.get("/api/auth/session", async (c) => {
+  const authMode = resolvedAuthModeForResponse(c.req.raw, c.env);
   const identity = await authenticate(c);
-  if (!identity) return c.json({ authenticated: false }, 401);
-  return c.json({ authenticated: true, email: identity.email, expiresAt: identity.exp ? identity.exp * 1000 : null });
+  if (!identity) return c.json({ authenticated: false, authMode, error: authMode ? undefined : authConfigurationError(c.env) }, authMode ? 401 : 503);
+  return c.json({ authenticated: true, authMode, email: identity.email, expiresAt: identity.exp ? identity.exp * 1000 : null });
+});
+
+app.post("/api/auth/login", async (c) => {
+  const authMode = resolvedAuthModeForResponse(c.req.raw, c.env);
+  if (authMode !== "key") return c.json({ error: "Key login is not enabled", authMode }, 404);
+  if (!requestOriginIsValid(c.req.raw)) return c.json({ error: "invalid origin" }, 403);
+  if (!c.env.LOGIN_RATE_LIMITER) return c.json({ error: "Login rate limiter is not configured" }, 503);
+  if (!(await c.env.LOGIN_RATE_LIMITER.limit({ key: clientAddress(c) })).success) return c.json({ error: "too many login attempts" }, 429);
+  const body = await jsonBody<{ key?: string }>(c);
+  if (typeof body.key !== "string" || !c.env.NUDGE_AUTH_KEY || !(await constantTimeKeyMatches(body.key, c.env.NUDGE_AUTH_KEY))) {
+    return c.json({ error: "Invalid Nudge key" }, 401);
+  }
+  const session = await createKeySession(c.env);
+  c.header("Set-Cookie", keySessionCookie(session.token));
+  return c.json({ authenticated: true, authMode: "key", expiresAt: session.expiresAt * 1000 });
 });
 
 app.use("/api/*", async (c, next) => {
   const identity = await authenticate(c);
   if (!identity) return c.json({ error: "unauthorized" }, 401);
-  c.set("authMode", identity.kind === "local" ? "local" : "access");
+  c.set("authMode", identity.kind);
   c.set("identity", identity);
 
-  if (MUTATING_METHODS.has(c.req.method) && !requestOriginIsValid(c.req.raw)) {
+  if (MUTATING_METHODS.has(c.req.method) && identity.source !== "bearer" && !requestOriginIsValid(c.req.raw)) {
     return c.json({ error: "invalid origin" }, 403);
   }
   await next();
 });
 
 app.post("/api/auth/logout", (c) => {
+  if (c.get("authMode") === "key") {
+    c.header("Set-Cookie", clearKeySessionCookie());
+    return c.json({ authenticated: false, authMode: "key" });
+  }
   return c.json({ authenticated: false, logoutUrl: accessLogoutUrl(c.req.raw) });
 });
 
@@ -866,13 +892,15 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const resolvedEnv = await runtimeEnv(env);
     const pathname = new URL(request.url).pathname;
+    const oauthResponse = await handleKeyOAuthRequest(request, resolvedEnv);
+    if (oauthResponse) return oauthResponse;
     if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
-      if (!await verifyAccessRequest(request, resolvedEnv)) return new Response("Unauthorized", { status: 401 });
+      if (!await authenticateMcpRequest(request, resolvedEnv, "email:mcp")) return mcpUnauthorized(request, resolvedEnv, "email:mcp");
       if (!emailConfigured(resolvedEnv)) return new Response("Email integration is not configured", { status: 503 });
       return emailMcpHandler.fetch(request, resolvedEnv as any, ctx);
     }
     if (pathname === "/memories/mcp" || pathname.startsWith("/memories/mcp/")) {
-      if (!await verifyAccessRequest(request, resolvedEnv)) return new Response("Unauthorized", { status: 401 });
+      if (!await authenticateMcpRequest(request, resolvedEnv, "memories:mcp")) return mcpUnauthorized(request, resolvedEnv, "memories:mcp");
       if (!memoriesConfigured(resolvedEnv)) return new Response("Memories is not configured", { status: 503 });
       return memoriesMcpHandler.fetch(request, resolvedEnv as any, ctx);
     }

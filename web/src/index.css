@@ -93,6 +93,11 @@ body {
 .login-card > button { border: 0; border-radius: var(--radius-sm); background: var(--ink); color: white; padding: 13px; font-weight: 700; cursor: pointer; }
 .login-card > button:disabled { opacity: 0.5; }
 .login-card small { color: var(--ink-soft); font-size: 10.5px; line-height: 1.45; text-align: center; }
+.login-form { display: grid; gap: 10px; }
+.login-form p { margin-bottom: 2px; }
+.login-form button { border: 0; border-radius: var(--radius-sm); background: var(--ink); color: white; padding: 13px; font-weight: 700; cursor: pointer; }
+.login-form button:disabled { opacity: 0.5; cursor: default; }
+.login-error { color: #b42318; font-size: 12px; font-weight: 650; }
 .login-error { color: #8B2222; font-size: 12px; font-weight: 650; }
 
 .memories-view { display: flex; flex-direction: column; gap: 16px; }

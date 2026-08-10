@@ -25,7 +25,7 @@ Gemini is not used by the Memories engine. It remains optional and powers only t
 
 The remote Streamable HTTP endpoint is `https://<your-nudge-host>/memories/mcp`.
 
-Use the owner-only Nudge Cloudflare Access application covering `/*`. Enable Managed OAuth, use a 15-minute access token and 24-hour grant, and configure its AUD as `NUDGE_ACCESS_AUD`.
+In Nudge Key mode, Nudge's built-in OAuth server authorizes the connector after the owner enters the key; it issues a scoped 15-minute access token and rotating 24-hour refresh grant. In Cloudflare Access mode, use the owner-only application covering `/*`, Managed OAuth, and `NUDGE_ACCESS_AUD`.
 
 Tools: `remember`, `append`, `update`, `set_status`, `recall`, `list_recent`, `get`, `forget`, `link`, `unlink`, and `connections`.
 

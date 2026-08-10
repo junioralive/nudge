@@ -7,7 +7,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const wranglerPath = path.join(projectRoot, "wrangler.jsonc");
-const rl = createInterface({ input, output });
+let rl = createInterface({ input, output });
 let managedOauthRedirectUris = [];
 const cli = Object.fromEntries(process.argv.slice(2).reduce((args, value, index, all) => {
   if (!value.startsWith("--")) return args;
@@ -58,6 +58,56 @@ async function askRequired(label) {
     const value = await ask(label);
     if (value) return value;
     console.log("This value is required.");
+  }
+}
+
+async function askSecret(label) {
+  if (!input.isTTY || !output.isTTY) return askRequired(label);
+  rl.close();
+  output.write(`${label}: `);
+  input.setRawMode(true);
+  input.resume();
+  const value = await new Promise((resolve, reject) => {
+    let secret = "";
+    const onData = (chunk) => {
+      const text = chunk.toString("utf8");
+      for (const character of text) {
+        if (character === "\u0003") {
+          input.off("data", onData);
+          reject(new Error("Setup cancelled"));
+          return;
+        }
+        if (character === "\r" || character === "\n") {
+          input.off("data", onData);
+          output.write("\n");
+          resolve(secret);
+          return;
+        }
+        if (character === "\u007f" || character === "\b") {
+          if (secret) { secret = secret.slice(0, -1); output.write("\b \b"); }
+          continue;
+        }
+        secret += character;
+        output.write("•");
+      }
+    };
+    input.on("data", onData);
+  }).finally(() => {
+    input.setRawMode(false);
+    input.pause();
+  });
+  rl = createInterface({ input, output });
+  return String(value).trim();
+}
+
+async function chooseAuthentication(existingMode = "") {
+  const fallback = existingMode === "access" ? "2" : "1";
+  while (true) {
+    console.log("\nAuthentication\n  1. Nudge Key (no Zero Trust account required)\n  2. Cloudflare Zero Trust (email OTP + Managed OAuth)");
+    const answer = await ask("Choose 1 or 2", fallback);
+    if (answer === "1" || answer.toLowerCase() === "key") return "key";
+    if (answer === "2" || answer.toLowerCase() === "access" || answer.toLowerCase() === "zero trust") return "access";
+    console.log("Choose 1 for Nudge Key or 2 for Cloudflare Zero Trust.");
   }
 }
 
@@ -289,14 +339,31 @@ async function main() {
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const secrets = existingSecretNames();
   const workerName = safeWorkerName(cli["worker-name"] || config.name || "nudge");
-  const ownerEmail = (await askRequired("Owner email for Cloudflare Access OTP")).toLowerCase();
+  const hasExistingAccess = ["TEAM_DOMAIN", "NUDGE_ACCESS_AUD", "NUDGE_OWNER_EMAIL"]
+    .every((name) => Boolean(config.vars?.[name]) || secrets.has(name));
+  const currentMode = String(config.vars?.AUTH_MODE || "auto") === "auto" && hasExistingAccess
+    ? "access"
+    : String(config.vars?.AUTH_MODE || "");
+  const authMode = await chooseAuthentication(currentMode);
   const customDomain = String(cli.domain || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const hostname = customDomain || `${workerName}.workers.dev`;
   const finalRoutes = customDomain ? [{ pattern: hostname, custom_domain: true }] : [];
-  const apiToken = await askRequired("Temporary Cloudflare API token (used only in memory)");
-  const accountId = discoverAccountId();
-  const redirectValues = String(cli["redirect-uri"] || "https://chatgpt.com/*,https://chat.openai.com/*,https://claude.ai/*");
-  managedOauthRedirectUris = redirectValues.split(",").map((value) => value.trim()).filter((value) => value.startsWith("https://"));
+  let ownerEmail = "";
+  let apiToken = "";
+  let accountId = "";
+  let nudgeKey = "";
+  if (authMode === "key") {
+    while (nudgeKey.length < 15) {
+      nudgeKey = await askSecret("Nudge key (minimum 15 characters)");
+      if (nudgeKey.length < 15) console.log("The Nudge key must contain at least 15 characters.");
+    }
+  } else {
+    ownerEmail = (await askRequired("Owner email for Cloudflare Access OTP")).toLowerCase();
+    while (!apiToken) apiToken = await askSecret("Temporary Cloudflare API token (used only in memory)");
+    accountId = discoverAccountId();
+    const redirectValues = String(cli["redirect-uri"] || "https://chatgpt.com/*,https://chat.openai.com/*,https://claude.ai/*");
+    managedOauthRedirectUris = redirectValues.split(",").map((value) => value.trim()).filter((value) => value.startsWith("https://"));
+  }
 
   config.name = workerName;
   config.workers_dev = true;
@@ -307,12 +374,17 @@ async function main() {
   config.routes = [];
   config.vars = {
     ...(config.vars || {}),
+    AUTH_MODE: authMode,
     VAPID_SUBJECT: `https://${hostname}`,
     GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
-    TEAM_DOMAIN: config.vars?.TEAM_DOMAIN || "https://pending.cloudflareaccess.com",
-    NUDGE_ACCESS_AUD: config.vars?.NUDGE_ACCESS_AUD || "pending-access-setup",
-    NUDGE_OWNER_EMAIL: ownerEmail,
   };
+  if (authMode === "access") {
+    config.vars.TEAM_DOMAIN = config.vars.TEAM_DOMAIN || "https://pending.cloudflareaccess.com";
+    config.vars.NUDGE_ACCESS_AUD = config.vars.NUDGE_ACCESS_AUD || "pending-access-setup";
+    config.vars.NUDGE_OWNER_EMAIL = ownerEmail;
+  } else {
+    for (const name of ["TEAM_DOMAIN", "NUDGE_ACCESS_AUD", "NUDGE_OWNER_EMAIL"]) delete config.vars[name];
+  }
   for (const name of ["APP_TIMEZONE", "NUDGE_PROFILE_NAME", "NUDGE_ASSISTANT_GENDER", "SECOND_BRAIN_URL", "MCP_ACCESS_AUD", "EMAIL_MCP_ACCESS_AUD", "MEMORIES_MCP_ACCESS_AUD"]) delete config.vars[name];
   await ensureDatabase(workerName, config);
   const kvId = await ensureEmailKv(workerName, config, undefined);
@@ -330,27 +402,30 @@ async function main() {
   }
   if (!secrets.has("NUDGE_ACTION_SIGNING_SECRET")) installSecret("NUDGE_ACTION_SIGNING_SECRET", randomBytes(48).toString("base64url"));
   if (!secrets.has("NUDGE_ENCRYPTION_KEY") && !secrets.has("CREDENTIAL_ENCRYPTION_KEY")) installSecret("NUDGE_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+  if (authMode === "key") installSecret("NUDGE_AUTH_KEY", nudgeKey);
 
-  console.log("Deploying once to obtain the Worker hostname…");
-  run("npm", ["run", "deploy"]);
-  const teamDomain = config.vars.TEAM_DOMAIN && !config.vars.TEAM_DOMAIN.includes("pending")
-    ? config.vars.TEAM_DOMAIN
-    : await discoverTeamDomain(apiToken, accountId);
-  config.vars.TEAM_DOMAIN = teamDomain;
-  updateWrangler(config);
+  if (authMode === "access") {
+    console.log("Deploying once to obtain the Worker hostname…");
+    run("npm", ["run", "deploy"]);
+    const teamDomain = config.vars.TEAM_DOMAIN && !config.vars.TEAM_DOMAIN.includes("pending")
+      ? config.vars.TEAM_DOMAIN
+      : await discoverTeamDomain(apiToken, accountId);
+    config.vars.TEAM_DOMAIN = teamDomain;
+    updateWrangler(config);
 
-  console.log("Configuring Cloudflare Access and Managed OAuth…");
-  const nudgeAud = await ensureAccessApplication(
-    apiToken,
-    accountId,
-    hostname,
-    [`${hostname}/*`],
-    "self_hosted",
-    ownerEmail,
-    true,
-    "Nudge",
-  );
-  config.vars.NUDGE_ACCESS_AUD = nudgeAud;
+    console.log("Configuring Cloudflare Access and Managed OAuth…");
+    const nudgeAud = await ensureAccessApplication(
+      apiToken,
+      accountId,
+      hostname,
+      [`${hostname}/*`],
+      "self_hosted",
+      ownerEmail,
+      true,
+      "Nudge",
+    );
+    config.vars.NUDGE_ACCESS_AUD = nudgeAud;
+  }
   config.routes = finalRoutes;
   delete config.keep_vars;
   delete config.vars.MCP_ACCESS_AUD;
@@ -371,8 +446,12 @@ async function main() {
   console.log(`Email KV namespace: ${kvId}`);
   console.log(`Memories D1: ${memories.databaseName}`);
   console.log(`Memories Vectorize: ${memories.indexName}`);
-  console.log(`Managed OAuth redirect URIs: ${managedOauthRedirectUris.join(", ")}`);
-  console.log("Access application and MCP sessions are set to 24 hours; Managed OAuth uses 15-minute access tokens.");
+  if (authMode === "access") {
+    console.log(`Managed OAuth redirect URIs: ${managedOauthRedirectUris.join(", ")}`);
+    console.log("Access application and MCP sessions are set to 24 hours; Managed OAuth uses 15-minute access tokens.");
+  } else {
+    console.log("Key authentication is active. Nudge provides scoped OAuth for Email and Memories MCP clients.");
+  }
   rl.close();
 }
 

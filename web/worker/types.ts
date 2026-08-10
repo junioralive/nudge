@@ -10,6 +10,7 @@ export interface Env {
   AI?: { run(model: string, input: unknown): Promise<unknown> };
   MEMORY_MCP_OBJECT?: DurableObjectNamespace;
   MEMORY_VECTORIZE_GRACE_MS?: string;
+  LOGIN_RATE_LIMITER?: RateLimiter;
   VOICE_RATE_LIMITER?: RateLimiter;
   GEMINI_API_KEY?: string;
   VAPID_PUBLIC_KEY: string;
@@ -17,6 +18,8 @@ export interface Env {
   VAPID_SUBJECT?: string;
   APP_TIMEZONE?: string;
   ACCESS_LOCAL_DEV?: string;
+  AUTH_MODE?: string;
+  NUDGE_AUTH_KEY?: string;
   TEAM_DOMAIN?: string;
   NUDGE_ACCESS_AUD?: string;
   EMAIL_KV?: KVNamespace;
@@ -79,13 +82,14 @@ export interface NotificationDeliveryRow {
   sequence: number;
 }
 
-export type AuthMode = "access" | "local";
+export type AuthMode = "access" | "key" | "local";
 
 export interface AccessIdentity {
-  kind: "access" | "local";
+  kind: "access" | "key" | "local";
   sub: string;
   email: string;
   exp?: number;
+  source?: "cookie" | "bearer" | "access" | "local";
 }
 
 export type AppBindings = {

@@ -1,8 +1,8 @@
 # API
 
-All data endpoints require a valid Cloudflare Access assertion. The Worker validates the Access issuer, audience, expiry, and configured owner email. Browser mutations also require a same-origin `Origin` header.
+All data endpoints require the selected authentication mode. Access mode validates the Cloudflare issuer, audience, expiry, and owner email. Key mode accepts a signed HttpOnly session cookie or, for trusted API clients, the master key as a bearer token. Cookie-authenticated browser mutations require a same-origin `Origin` header.
 
-`GET /api/auth/session` returns the verified Access email and token expiry. `POST /api/auth/logout` returns the Cloudflare Access logout URL. There is no Nudge password or bearer-key login.
+`GET /api/auth/session` returns `authMode`, identity state, and expiry. `POST /api/auth/login` creates a Key-mode session. `POST /api/auth/logout` clears that session or returns the Cloudflare Access logout URL.
 
 Core endpoints include `GET /api/tasks`, `POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/tasks/:id/done`, `GET /api/capabilities`, and `GET /api/health`.
 
@@ -23,4 +23,4 @@ Email endpoints are available only when the embedded Email KV store and encrypti
 
 Inbox and search responses contain signed opaque message references. Mutations use short-lived, single-use approval values returned by those APIs. Sending additionally requires `X-Confirm-Send: true`.
 
-Remote MCP endpoints are `POST /email/mcp` and `POST /memories/mcp`. Both use Managed OAuth on the same owner-only Access application and `NUDGE_ACCESS_AUD` as normal Nudge APIs.
+Remote MCP endpoints are `POST /email/mcp` and `POST /memories/mcp`. Access mode uses Cloudflare Managed OAuth. Key mode publishes OAuth discovery, dynamic registration, authorization-code + PKCE, token, refresh, and revocation endpoints under `/.well-known/*` and `/oauth/*`. Email and Memories scopes are separate.

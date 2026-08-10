@@ -65,7 +65,9 @@ flowchart LR
 
 The button clones the repository, provisions both D1 databases, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. Cloudflare shows two KV fields but cannot derive separate default names for them. For a new `nudge` installation, name the first KV `nudge-email` and the second `nudge-memories-config`. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
 
-The button cannot create Cloudflare Zero Trust Access applications or owner-email OTP policies. The first infrastructure deployment therefore stays securely fail-closed until you finish the guided Access step from the generated repository:
+For the easiest installation, enter a private `NUDGE_AUTH_KEY` of at least 15 characters in the encrypted Deploy field. Nudge then works without Zero Trust. If neither a valid key nor complete Access configuration exists, the Worker fails closed.
+
+To choose authentication interactively, run the guided setup from the generated repository:
 
 ```sh
 npm install
@@ -73,7 +75,7 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-That guided command asks only for the owner email and a temporary, narrowly scoped Access token. It completes Access, Managed OAuth, generated secrets, migrations, and the final secured deployment. The token remains memory-only. This is the supported end-to-end installation path; the Deploy button alone is not a fully usable one-click installation.
+The wizard offers **Nudge Key** or **Cloudflare Zero Trust**. Key mode asks only for the private key. Access mode asks for the owner email and a temporary, narrowly scoped Access token, then configures email OTP and Managed OAuth. The token remains memory-only.
 
 You can also skip the button and run the same guided setup directly after cloning:
 
@@ -83,12 +85,9 @@ npx wrangler login
 npm run setup:cloudflare
 ```
 
-The setup wizard asks for:
+The setup wizard asks for an authentication choice. Nudge Key requires a 15+ character private key; Zero Trust requires an owner email and temporary Cloudflare API token with Access application/policy write permission. Optional flags are `--domain`, `--worker-name`, and `--redirect-uri`.
 
-- Your owner email and a temporary Cloudflare API token with Access application/policy write permission
-- Optional flags: `--domain`, `--worker-name`, and `--redirect-uri`
-
-It then creates or reuses the `nudge-*` D1, KV, and Vectorize resources, provisions one Cloudflare Access application for Nudge with Managed OAuth for both MCP paths, generates VAPID/encryption/action secrets, applies migrations, and deploys. First-login onboarding collects your profile. Gemini and Microsoft Outlook are optional Settings integrations. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
+It then creates or reuses the `nudge-*` resources, generates VAPID/encryption/action secrets, applies migrations, and deploys. Access resources are created only when Zero Trust is selected. First-login onboarding collects your profile. Gemini and Microsoft Outlook are optional Settings integrations.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
@@ -107,7 +106,7 @@ Do not accept `npx wrangler deploy` for Nudge. It bypasses Nudge's generated-sec
 
 The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The Deploy-button form shows two distinct KV bindings: use `nudge-email` for the first (`EMAIL_KV`) and `nudge-memories-config` for the second (`MEMORY_CONFIG_KV`).
 
-Cloudflare treats values sourced from `.dev.vars.example` as encrypted Worker-secret inputs. Nudge intentionally has no root `.dev.vars.example`: encryption, action-signing, and VAPID secrets are generated during deployment, while browser login is Cloudflare Access email OTP rather than an application password. Local-only examples remain under `web/.dev.vars.example` and never enter the Deploy form.
+Cloudflare treats values sourced from `.dev.vars.example` as encrypted Worker-secret inputs. Nudge exposes only the optional `NUDGE_AUTH_KEY` there; encryption, action-signing, and VAPID secrets are generated during deployment. Local-only examples remain under `web/.dev.vars.example`.
 
 ## Local development
 
@@ -122,9 +121,14 @@ For local secrets, copy `web/.dev.vars.example` to `web/.dev.vars` and use devel
 
 ## Configuration
 
+Authentication configuration:
+
+- `AUTH_MODE=auto|key|access` — `auto` safely prefers complete Access configuration, then falls back to Key
+- `NUDGE_AUTH_KEY` — required only for Key mode; encrypted and at least 15 characters
+- `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — required only for Access mode
+
 Required Worker configuration:
 
-- `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — configured by the setup wizard for Cloudflare Access
 - `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — generated automatically for Web Push delivery
 - `NUDGE_ENCRYPTION_KEY` — generated for new Email KV and integration stores; existing deployments temporarily accept `CREDENTIAL_ENCRYPTION_KEY`
 - `NUDGE_ACTION_SIGNING_SECRET` — generated for one-time browser email approvals
@@ -133,7 +137,7 @@ Optional secrets:
 
 - `GEMINI_API_KEY` — enables the voice assistant
 
-Configuration variables include `VAPID_SUBJECT`, `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL`. The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. `NUDGE_AUTH_KEY`, `SESSION_SECRET`, and a separate MCP audience are not used.
+The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. No separate session secret or MCP audience is required.
 
 ## Optional integrations
 
@@ -169,7 +173,7 @@ The permanent MCP endpoint is:
 https://<your-nudge-host>/email/mcp
 ```
 
-The shared MCP Access application covers `/email/mcp*` and `/memories/mcp*`. It enables Managed OAuth with 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow.
+In Access mode, Managed OAuth provides 15-minute tokens and 24-hour grants. In Key mode, Nudge exposes its own PKCE OAuth flow with the same lifetimes; the authorization page verifies the Nudge key without sharing it with ChatGPT or Claude. Email and Memories connectors receive isolated scopes.
 
 For an existing Access application configured manually, add these **Managed OAuth → Allowed redirect URIs** before connecting an MCP client:
 
@@ -190,9 +194,10 @@ Nudge is intentionally single-user and private by default.
 
 - All data APIs require authentication.
 - Browser mutations require same-origin requests.
-- Cloudflare Access validates the issuer, audience, expiry, and owner email on every request; browser access uses email OTP.
-- Browser and MCP routes use the same owner-only `NUDGE_ACCESS_AUD`.
-- Managed OAuth uses short-lived 15-minute MCP access tokens and 24-hour grant sessions.
+- Access mode validates the Cloudflare issuer, audience, expiry, and owner email on every request.
+- Key mode uses constant-time key verification, a signed 30-day HttpOnly cookie, login throttling, and scoped PKCE OAuth for MCP clients.
+- In `auto`, complete Access configuration always wins, so adding a Nudge key cannot bypass an existing Access installation.
+- MCP access tokens last 15 minutes and refresh grants last 24 hours.
 - Voice endpoints are rate-limited.
 - Service-worker caches contain application assets only, never authenticated API responses.
 - Secrets stay in Cloudflare Worker secrets and are never sent to frontend code.

@@ -1,0 +1,3 @@
+# Optional. Supplying this selects Key authentication on fresh deployments
+# where Cloudflare Access has not been configured. Use at least 15 characters.
+NUDGE_AUTH_KEY=

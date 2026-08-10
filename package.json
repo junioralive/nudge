@@ -35,6 +35,12 @@
       "MEMORY_VECTORIZE": {
         "description": "384-dimensional semantic index for Memories. Name it `nudge-memories-vectors`."
       },
+      "AUTH_MODE": {
+        "description": "Authentication selection: auto (Access when complete, otherwise Nudge Key), key, or access. Keep auto for safe upgrades."
+      },
+      "NUDGE_AUTH_KEY": {
+        "description": "Optional encrypted login key for Key mode. Must contain at least 15 characters. Ignored whenever Access wins in auto mode."
+      },
       "VAPID_PUBLIC_KEY": {
         "description": "Required push public key. The guided setup generates the VAPID pair automatically."
       },
@@ -45,7 +51,7 @@
         "description": "Cloudflare Access team domain, for example https://team.cloudflareaccess.com."
       },
       "NUDGE_ACCESS_AUD": {
-        "description": "Cloudflare Access audience for the main Nudge application."
+        "description": "Cloudflare Access audience for Nudge and its MCP routes. Required only for Access mode."
       },
       "NUDGE_OWNER_EMAIL": {
         "description": "Only email identity allowed to use this private Nudge deployment."

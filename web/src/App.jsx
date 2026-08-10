@@ -10,6 +10,7 @@ import {
   fetchCapabilities,
   fetchTasks,
   getSession,
+  login,
   logout,
   updateProfile,
   completeOnboarding,
@@ -58,11 +59,11 @@ function isToday(dueAt) {
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(null);
+  const [authState, setAuthState] = useState(null);
 
   useEffect(() => {
-    getSession().then((session) => setAuthenticated(session.authenticated)).catch(() => setAuthenticated(false));
-    const lock = () => setAuthenticated(false);
+    getSession().then((session) => setAuthState(session)).catch(() => setAuthState({ authenticated: false, authMode: null }));
+    const lock = () => setAuthState((current) => ({ authenticated: false, authMode: current?.authMode || null }));
     window.addEventListener("nudge:unauthorized", lock);
     return () => window.removeEventListener("nudge:unauthorized", lock);
   }, []);
@@ -79,19 +80,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (authenticated !== null) {
+    if (authState !== null) {
       const splash = document.getElementById("nudge-splash");
       if (splash) { splash.classList.add("done"); window.setTimeout(() => splash.remove(), 220); }
     }
-  }, [authenticated]);
+  }, [authState]);
 
-  if (authenticated === null) return <div className="app-loading">Loading Nudge…</div>;
-  if (!authenticated) {
-    return <LoginScreen />;
+  if (authState === null) return <div className="app-loading">Loading Nudge…</div>;
+  if (!authState.authenticated) {
+    return <LoginScreen authMode={authState.authMode} configurationError={authState.error} onLogin={async (key) => {
+      const result = await login(key);
+      setAuthState(result);
+    }} />;
   }
   return <NudgeApp onLogout={async () => {
     const result = await logout();
-    setAuthenticated(false);
+    setAuthState({ authenticated: false, authMode: authState.authMode });
     if (result?.logoutUrl) window.location.assign(result.logoutUrl);
   }} />;
 }

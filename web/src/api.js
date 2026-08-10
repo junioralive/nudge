@@ -20,7 +20,16 @@ async function apiFetch(path, options = {}) {
 }
 
 export function getSession() {
-  return apiFetch("/api/auth/session");
+  return fetch("/api/auth/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+    .then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 401 || response.status === 503) return body;
+      if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`);
+      return body;
+    });
+}
+export function login(key) {
+  return apiFetch("/api/auth/login", { method: "POST", body: JSON.stringify({ key }) });
 }
 export function fetchCapabilities() { return apiFetch("/api/capabilities"); }
 

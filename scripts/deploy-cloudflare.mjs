@@ -9,6 +9,7 @@ const webRoot = path.join(projectRoot, "web");
 const wranglerConfig = path.join(projectRoot, "wrangler.jsonc");
 const viteDeployConfig = path.join(webRoot, ".wrangler", "deploy", "config.json");
 const USER_SECRET_NAMES = [
+  "NUDGE_AUTH_KEY",
   "GEMINI_API_KEY",
   "NUDGE_ENCRYPTION_KEY",
   "CREDENTIAL_ENCRYPTION_KEY",
