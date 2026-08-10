@@ -183,8 +183,8 @@ export default function VoicePanel({ onClose, onTaskChange, activeWorkspace = "P
     if (name === "complete_task" && result?.ok) return "Marked a task done";
     if (name === "delete_task" && result?.ok) return "Deleted a task";
     if (name === "list_tasks") return `Checked ${result?.count ?? 0} task(s)`;
-    if (name === "remember_memory" && result?.ok === true) return "Saved to Second Brain";
-    if (name === "remember_memory" && result?.duplicate) return "That memory already exists in Second Brain";
+    if (name === "remember_memory" && result?.ok === true) return result.status === "merged" ? "Merged into Memories" : result.status === "replaced" ? "Updated an older memory" : "Saved to Memories";
+    if (name === "remember_memory" && result?.duplicate) return "That memory already exists";
     if (name === "remember_memory") return `Memory was not saved${result?.error ? `: ${result.error}` : ""}`;
     if (name === "recall_memory") return `Recalled ${result?.results?.length ?? 0} memory item(s)`;
     if (name === "list_recent_memories") return "Checked recent memories";

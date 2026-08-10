@@ -169,7 +169,7 @@ export default function SettingsView({ profile, capabilities, onSave, onClose })
           <div className="settings-card-title"><Brain size={18} /><div><h3>Capabilities</h3><p>Optional services connected to this Nudge.</p></div></div>
           <div className="capability-list">
             <div className="capability-row"><span><strong>Gemini voice</strong><small>Live conversations and task capture</small></span><b className={capabilities.gemini ? "ready" : "off"}>{capabilities.gemini ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
-            <div className="capability-row"><span><strong>Second Brain</strong><small>Durable memories and semantic recall</small></span><b className={capabilities.secondBrain ? "ready" : "off"}>{capabilities.secondBrain ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
+            <div className="capability-row"><span><strong>Memories</strong><small>Built-in durable context and semantic recall</small></span><b className={capabilities.secondBrain ? "ready" : "off"}>{capabilities.secondBrain ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
             <div className="capability-row"><span><strong>Push notifications</strong><small>Due-time reminders on registered devices</small></span><b className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
             <div className="capability-row"><span><strong>Email assistant</strong><small>Private, on-demand access to connected inboxes</small></span><b className={capabilities.email ? "ready" : "off"}>{capabilities.email ? <><Mail size={13} /> Ready</> : "Not configured"}</b></div>
           </div>

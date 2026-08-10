@@ -14,7 +14,10 @@ function isLocalDevelopment(request: Request, env: Env): boolean {
 export function expectedAccessAudience(request: Request, env: Env): string | undefined {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
-    return env.EMAIL_MCP_ACCESS_AUD || env.NUDGE_ACCESS_AUD;
+    return env.EMAIL_MCP_ACCESS_AUD;
+  }
+  if (pathname === "/memories/mcp" || pathname.startsWith("/memories/mcp/")) {
+    return env.MEMORIES_MCP_ACCESS_AUD;
   }
   return env.NUDGE_ACCESS_AUD;
 }

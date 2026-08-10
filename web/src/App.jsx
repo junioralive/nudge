@@ -356,8 +356,8 @@ function NudgeApp({ onLogout }) {
           : view === "notifications" ? <NotificationsView tasks={calendarTasks} pushStatus={pushStatus}
               onEnableNotifications={handleEnableNotifications} onDisableNotifications={handleDisableNotifications}
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
-          : view === "memories" ? <Suspense fallback={<div className="empty">Opening Second Brain…</div>}><MemoriesView activeWorkspace={activeWorkspace} /></Suspense>
-          : view === "email" ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} /></Suspense>
+          : view.startsWith("memories") ? <Suspense fallback={<div className="empty">Opening Memories…</div>}><MemoriesView activeWorkspace={activeWorkspace} section={view.split("-")[1] || "overview"} onSectionChange={(section) => setView(`memories-${section}`)} /></Suspense>
+          : view.startsWith("email") ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} accountsInitiallyOpen={view === "email-accounts"} /></Suspense>
           : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />

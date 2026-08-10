@@ -18,10 +18,10 @@ describe("Cloudflare Access authentication", () => {
     } as any)).resolves.toBeNull();
   });
 
-  it("uses the main Access audience for MCP when a dedicated audience is absent", async () => {
+  it("fails closed when an MCP-specific audience is absent", async () => {
     expect(expectedAccessAudience(new Request("https://nudge.example.com/email/mcp"), {
       NUDGE_ACCESS_AUD: "nudge-audience",
-    } as any)).toBe("nudge-audience");
+    } as any)).toBeUndefined();
   });
 
   it("prefers a dedicated MCP audience when configured", () => {
@@ -29,5 +29,13 @@ describe("Cloudflare Access authentication", () => {
       NUDGE_ACCESS_AUD: "nudge-audience",
       EMAIL_MCP_ACCESS_AUD: "mcp-audience",
     } as any)).toBe("mcp-audience");
+  });
+
+  it("isolates Memories MCP from app and Email audiences", () => {
+    expect(expectedAccessAudience(new Request("https://nudge.example.com/memories/mcp"), {
+      NUDGE_ACCESS_AUD: "nudge-audience",
+      EMAIL_MCP_ACCESS_AUD: "email-audience",
+      MEMORIES_MCP_ACCESS_AUD: "memories-audience",
+    } as any)).toBe("memories-audience");
   });
 });

@@ -4,6 +4,12 @@ export interface RateLimiter {
 
 export interface Env {
   DB: D1Database;
+  MEMORY_DB?: D1Database;
+  MEMORY_VECTORIZE?: VectorizeIndex;
+  MEMORY_CONFIG_KV?: KVNamespace;
+  AI?: { run(model: string, input: unknown): Promise<unknown> };
+  MEMORY_MCP_OBJECT?: DurableObjectNamespace;
+  MEMORY_VECTORIZE_GRACE_MS?: string;
   VOICE_RATE_LIMITER?: RateLimiter;
   SECOND_BRAIN_URL?: string;
   SECOND_BRAIN_TOKEN?: string;
@@ -16,6 +22,7 @@ export interface Env {
   TEAM_DOMAIN?: string;
   NUDGE_ACCESS_AUD?: string;
   EMAIL_MCP_ACCESS_AUD?: string;
+  MEMORIES_MCP_ACCESS_AUD?: string;
   NUDGE_OWNER_EMAIL?: string;
   EMAIL_KV?: KVNamespace;
   MCP_OBJECT?: DurableObjectNamespace;

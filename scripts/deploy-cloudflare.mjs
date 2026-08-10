@@ -10,7 +10,6 @@ const wranglerConfig = path.join(projectRoot, "wrangler.jsonc");
 const viteDeployConfig = path.join(webRoot, ".wrangler", "deploy", "config.json");
 const USER_SECRET_NAMES = [
   "GEMINI_API_KEY",
-  "SECOND_BRAIN_TOKEN",
   "CREDENTIAL_ENCRYPTION_KEY",
   "NUDGE_ACTION_SIGNING_SECRET",
   "OUTLOOK_CLIENT_ID",
@@ -152,6 +151,7 @@ async function main() {
     }
     run("npx", deployArgs, { cwd: webRoot });
     run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", wranglerConfig], { cwd: projectRoot });
+    run("npx", ["wrangler", "d1", "execute", "MEMORY_DB", "--remote", "--file", "web/memory-migrations/0001_memories.sql", "--config", wranglerConfig], { cwd: projectRoot });
   } finally {
     if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   }

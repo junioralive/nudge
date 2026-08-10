@@ -27,7 +27,9 @@
     "run_worker_first": [
       "/api/*",
       "/email/mcp",
-      "/email/mcp/*"
+      "/email/mcp/*",
+      "/memories/mcp",
+      "/memories/mcp/*"
     ]
   },
   "d1_databases": [
@@ -36,19 +38,41 @@
       "database_name": "nudge-db",
       "migrations_dir": "web/migrations",
       "database_id": "83ff10cb-1b0f-43d8-8073-0078dacd4707"
+    },
+    {
+      "binding": "MEMORY_DB",
+      "database_name": "nudge-memories",
+      "database_id": "76b8d867-9de7-4da0-9c01-a6d04a1793b4"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "EMAIL_KV",
       "id": "7f439d33892c464daf338365d907021d"
+    },
+    {
+      "binding": "MEMORY_CONFIG_KV",
+      "id": "3e7ebd2b1f15463d915fef8da1b36ade"
     }
   ],
+  "vectorize": [
+    {
+      "binding": "MEMORY_VECTORIZE",
+      "index_name": "nudge-memories-vectors"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
   "durable_objects": {
     "bindings": [
       {
         "name": "MCP_OBJECT",
         "class_name": "MyMCP"
+      },
+      {
+        "name": "MEMORY_MCP_OBJECT",
+        "class_name": "MemoriesMCP"
       }
     ]
   },
@@ -57,6 +81,12 @@
       "tag": "email-mcp-v1",
       "new_sqlite_classes": [
         "MyMCP"
+      ]
+    },
+    {
+      "tag": "memories-mcp-v1",
+      "new_sqlite_classes": [
+        "MemoriesMCP"
       ]
     }
   ],
@@ -72,7 +102,8 @@
   ],
   "triggers": {
     "crons": [
-      "* * * * *"
+      "* * * * *",
+      "0 1 * * *"
     ]
   }
 }

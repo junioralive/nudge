@@ -1,4 +1,4 @@
-import { AudioLines, Home, Bell, CalendarDays, Plus, Check, Brain, Mail } from "lucide-react";
+import { AudioLines, Home, Bell, CalendarDays, Plus, Check, Brain, Mail, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
@@ -25,6 +25,8 @@ export default function Sidebar({
 }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const [memoryOpen, setMemoryOpen] = useState(view.startsWith("memories"));
+  const [emailOpen, setEmailOpen] = useState(view.startsWith("email"));
 
   function submitAdd() {
     const value = draft.trim();
@@ -60,12 +62,8 @@ export default function Sidebar({
         <button className={view === "calendar" ? "active" : ""} onClick={() => onNavigate("calendar")}>
           <CalendarDays size={16} /> Calendar
         </button>
-        {capabilities.secondBrain && <button className={view === "memories" ? "active" : ""} onClick={() => onNavigate("memories")}>
-          <Brain size={16} /> Memories
-        </button>}
-        {capabilities.email && <button className={view === "email" ? "active" : ""} onClick={() => onNavigate("email")}>
-          <Mail size={16} /> Email
-        </button>}
+        {capabilities.secondBrain && <div className="sidebar-nav-group"><button className={view.startsWith("memories") ? "active" : ""} onClick={() => { setMemoryOpen((open) => !open); if (!view.startsWith("memories")) onNavigate("memories-overview"); }}><Brain size={16} /> Memories <ChevronDown className={memoryOpen ? "open" : ""} size={14} /></button>{memoryOpen && <div className="sidebar-subnav">{[["overview", "Overview"], ["ask", "Ask Memories"], ["library", "Library"], ["graph", "Graph"], ["settings", "Settings & backup"]].map(([key, label]) => <button className={view === `memories-${key}` ? "active" : ""} onClick={() => onNavigate(`memories-${key}`)} key={key}>{label}</button>)}</div>}</div>}
+        {capabilities.email && <div className="sidebar-nav-group"><button className={view.startsWith("email") ? "active" : ""} onClick={() => { setEmailOpen((open) => !open); if (!view.startsWith("email")) onNavigate("email-inbox"); }}><Mail size={16} /> Email <ChevronDown className={emailOpen ? "open" : ""} size={14} /></button>{emailOpen && <div className="sidebar-subnav"><button className={view === "email-inbox" ? "active" : ""} onClick={() => onNavigate("email-inbox")}>Inbox</button><button className={view === "email-accounts" ? "active" : ""} onClick={() => onNavigate("email-accounts")}>Accounts</button></div>}</div>}
       </nav>
 
       <div className="sidebar-section-label">Workspaces</div>

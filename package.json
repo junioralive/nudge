@@ -46,11 +46,8 @@
       "GEMINI_API_KEY": {
         "description": "Optional. Add a Google AI Studio API key to enable the live voice assistant. Leave blank to disable."
       },
-      "SECOND_BRAIN_URL": {
-        "description": "Optional. URL of your deployed Second Brain Worker. Leave blank to disable memories."
-      },
-      "SECOND_BRAIN_TOKEN": {
-        "description": "Optional. Use the authentication token from that Second Brain deployment. Leave blank to disable."
+      "MEMORIES_MCP_ACCESS_AUD": {
+        "description": "Cloudflare Access audience for the path-specific /memories/mcp application."
       },
       "CREDENTIAL_ENCRYPTION_KEY": {
         "description": "Required base64 32-byte key for encrypted Email KV records. Existing deployments must reuse their current key."

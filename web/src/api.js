@@ -178,3 +178,52 @@ export function deleteMemory(id) {
     headers: { "X-Confirm-Delete": "true" },
   });
 }
+
+export function fetchMemory(id) {
+  return apiFetch(`/api/memories/${encodeURIComponent(id)}`);
+}
+
+export function updateMemory(id, content, tags) {
+  return apiFetch(`/api/memories/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ content, tags }) });
+}
+
+export function appendMemory(id, content) {
+  return apiFetch(`/api/memories/${encodeURIComponent(id)}/append`, { method: "POST", body: JSON.stringify({ content }) });
+}
+
+export function setMemoryStatus(id, status) {
+  return apiFetch(`/api/memories/${encodeURIComponent(id)}/status`, { method: "POST", body: JSON.stringify({ status }) });
+}
+
+export function askMemories(question, workspace) {
+  return apiFetch("/api/memories/ask", { method: "POST", body: JSON.stringify({ question, workspace: workspace === "All" ? undefined : workspace }) });
+}
+
+export function fetchMemoryGraph(seed, limit = 250) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (seed) params.set("seed", seed);
+  return apiFetch(`/api/memories/graph?${params}`);
+}
+
+export function fetchMemoryStats() { return apiFetch("/api/memories/stats"); }
+export function fetchMemoriesHealth() { return apiFetch("/api/memories/health"); }
+export function fetchMemoryConfig() { return apiFetch("/api/memories/config"); }
+export function saveMemoryConfig(patch) { return apiFetch("/api/memories/config", { method: "PATCH", body: JSON.stringify(patch) }); }
+
+export async function downloadMemoriesExport() {
+  const payload = await apiFetch("/api/memories/export");
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `nudge-memories-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function importMemoriesBackup(payload, offset = 0, edgeOffset = 0, limit = 50) {
+  const params = new URLSearchParams({ offset: String(offset), edgeOffset: String(edgeOffset), limit: String(limit) });
+  return apiFetch(`/api/memories/import?${params}`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function fetchMemoryReindexStatus() { return apiFetch("/api/memories/reindex"); }
+export function reindexMemoriesBatch() { return apiFetch("/api/memories/reindex", { method: "POST" }); }

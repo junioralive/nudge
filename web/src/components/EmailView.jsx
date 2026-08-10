@@ -36,7 +36,7 @@ const PROVIDERS = {
   custom: { label: "Custom", description: "Any IMAP and SMTP provider", name: "", imapHost: "", imapPort: "993", imapSecure: true, smtpHost: "", smtpPort: "465", smtpSecure: true },
 };
 
-export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated, outlookConfigured = false }) {
+export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated, outlookConfigured = false, accountsInitiallyOpen = false }) {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
   const [messages, setMessages] = useState([]);
@@ -102,6 +102,10 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
       .catch((requestError) => setError(requestError.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (accountsInitiallyOpen) openAccountManager();
+  }, [accountsInitiallyOpen]);
 
   async function submitSearch(event) {
     event.preventDefault();

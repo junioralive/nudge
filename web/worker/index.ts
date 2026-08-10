@@ -10,7 +10,34 @@ import {
 } from "./auth";
 import { addTask, completeTask, deleteTask, getTask, listTasks, updateTask } from "./data";
 import { processDueReminders, retryFailedDeliveries } from "./reminders";
-import { captureMemory, forgetMemory, listRecentMemories, recallMemories, SecondBrainError } from "./secondBrain";
+import {
+  appendMemory,
+  askMemories,
+  captureMemory,
+  exportMemories,
+  forgetMemory,
+  getMemory,
+  importMemories,
+  linkMemories,
+  listRecentMemories,
+  memoriesConfigured,
+  memoriesHealth,
+  memoryConfig,
+  memoryConnections,
+  memoryGraph,
+  memoryReindexStatus,
+  memoryStats,
+  recallMemories,
+  reindexMemories,
+  SecondBrainError,
+  setMemoryStatus,
+  unlinkMemories,
+  updateMemory,
+  updateMemoryConfig,
+} from "./secondBrain";
+import { runNightlyCompression } from "./memories-core/compression/nightly";
+import { runGraphPass } from "./memories-core/graph/pass";
+import { runStalenessPass } from "./memories-core/staleness/pass";
 import { disableDevice, getActiveDevice, getPushStatus, registerSubscription, sendTestPush } from "./push";
 import {
   callEmailTool,
@@ -27,6 +54,7 @@ import {
 } from "./email";
 import { clearOauthCookie, emailService, emailStore, finishOutlookOAuth, outlookConfigured, parseAccountInput, startOutlookOAuth } from "./emailAccounts";
 import { emailMcpHandler, MyMCP } from "./email-core/mcp";
+import { memoriesMcpHandler, MemoriesMCP } from "./memoriesMcp";
 import { runTool, toolDeclarations } from "./tools";
 import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
@@ -100,24 +128,16 @@ app.get("/api/health", async (c) => {
   } catch {
     database = false;
   }
-  if (c.env.SECOND_BRAIN_TOKEN && c.env.SECOND_BRAIN_URL) {
-    try {
-      const response = await fetch(new URL("/health", `${c.env.SECOND_BRAIN_URL.replace(/\/$/, "")}/`), {
-        headers: { Authorization: `Bearer ${c.env.SECOND_BRAIN_TOKEN}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      memory = response.ok;
-    } catch {
-      memory = false;
-    }
-  }
+  if (memoriesConfigured(c.env)) memory = (await memoriesHealth(c.env)).healthy;
   const ok = missing.length === 0 && database;
-  return c.json({ ok, database, memory, memoryConfigured: Boolean(c.env.SECOND_BRAIN_TOKEN), geminiConfigured: Boolean(c.env.GEMINI_API_KEY), missing }, ok ? 200 : 503);
+  return c.json({ ok, database, memory, memoryConfigured: memoriesConfigured(c.env), geminiConfigured: Boolean(c.env.GEMINI_API_KEY), missing }, ok ? 200 : 503);
 });
 
 app.get("/api/capabilities", (c) => c.json({
   gemini: Boolean(c.env.GEMINI_API_KEY),
-  secondBrain: Boolean(c.env.SECOND_BRAIN_TOKEN && c.env.SECOND_BRAIN_URL),
+  secondBrain: memoriesConfigured(c.env),
+  memories: memoriesConfigured(c.env),
+  memoriesMcp: Boolean(c.env.MEMORIES_MCP_ACCESS_AUD && c.env.MEMORY_MCP_OBJECT),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
   email: emailConfigured(c.env),
   outlook: outlookConfigured(c.env),
@@ -624,9 +644,65 @@ app.post("/api/memories", async (c) => {
     content,
     workspace: cleanText(body.workspace, 80),
     tags: Array.isArray(body.tags) ? body.tags.map((tag) => cleanText(tag, 60)).filter(Boolean) : [],
-  });
+  }, c.executionCtx as unknown as ExecutionContext);
   return c.json(result, 201);
 });
+
+app.post("/api/memories/ask", async (c) => {
+  const body = await jsonBody<{ question?: string; workspace?: string }>(c);
+  const question = cleanText(body.question, 2_000);
+  if (!question) return c.json({ error: "question is required" }, 400);
+  return c.json(await askMemories(c.env, question, cleanText(body.workspace, 80)));
+});
+
+app.get("/api/memories/graph", async (c) => c.json(await memoryGraph(c.env, cleanText(c.req.query("seed"), 100) || undefined, Number(c.req.query("limit")) || 250)));
+app.get("/api/memories/stats", async (c) => c.json(await memoryStats(c.env)));
+app.get("/api/memories/health", async (c) => c.json(await memoriesHealth(c.env)));
+app.get("/api/memories/config", async (c) => c.json(await memoryConfig(c.env)));
+app.patch("/api/memories/config", async (c) => c.json(await updateMemoryConfig(c.env, await jsonBody<Record<string, unknown>>(c) as any)));
+app.get("/api/memories/export", async (c) => c.json(await exportMemories(c.env)));
+app.post("/api/memories/import", async (c) => {
+  const body = await jsonBody<Record<string, unknown>>(c);
+  return c.json(await importMemories(c.env, body, {
+    offset: Number(c.req.query("offset")) || 0,
+    edgeOffset: Number(c.req.query("edgeOffset")) || 0,
+    limit: Number(c.req.query("limit")) || 50,
+  }));
+});
+app.get("/api/memories/reindex", async (c) => c.json(await memoryReindexStatus(c.env)));
+app.post("/api/memories/reindex", async (c) => c.json(await reindexMemories(c.env)));
+
+app.get("/api/memories/:id", async (c) => c.json(await getMemory(c.env, c.req.param("id"))));
+
+app.patch("/api/memories/:id", async (c) => {
+  const body = await jsonBody<{ content?: string; tags?: string[] }>(c);
+  const content = cleanText(body.content, 20_000);
+  if (!content) return c.json({ error: "content is required" }, 400);
+  const tags = Array.isArray(body.tags) ? body.tags.map((tag) => cleanText(tag, 60)).filter(Boolean) : undefined;
+  return c.json(await updateMemory(c.env, c.req.param("id"), content, tags));
+});
+
+app.post("/api/memories/:id/append", async (c) => {
+  const body = await jsonBody<{ content?: string }>(c);
+  const content = cleanText(body.content, 10_000);
+  if (!content) return c.json({ error: "content is required" }, 400);
+  return c.json(await appendMemory(c.env, c.req.param("id"), content));
+});
+
+app.post("/api/memories/:id/status", async (c) => {
+  const body = await jsonBody<{ status?: string }>(c);
+  if (!body.status || !["canonical", "draft", "deprecated"].includes(body.status)) return c.json({ error: "invalid status" }, 400);
+  return c.json(await setMemoryStatus(c.env, c.req.param("id"), body.status as any));
+});
+
+app.get("/api/memories/:id/connections", async (c) => c.json(await memoryConnections(c.env, c.req.param("id"), cleanText(c.req.query("type"), 40) || undefined)));
+app.post("/api/memories/:id/links", async (c) => {
+  const body = await jsonBody<{ targetId?: string; type?: string }>(c);
+  const targetId = cleanText(body.targetId, 100);
+  if (!targetId) return c.json({ error: "targetId is required" }, 400);
+  return c.json(await linkMemories(c.env, c.req.param("id"), targetId, cleanText(body.type, 40) || "relates_to"));
+});
+app.delete("/api/memories/:id/links/:targetId", async (c) => c.json(await unlinkMemories(c.env, c.req.param("id"), c.req.param("targetId"), cleanText(c.req.query("type"), 40) || undefined)));
 
 app.delete("/api/memories/:id", async (c) => {
   if (c.req.header("X-Confirm-Delete") !== "true") return c.json({ error: "confirmation required" }, 409);
@@ -640,9 +716,9 @@ function voiceSystemInstruction(name: string, gender: string): string {
 
 Tasks are exact operational state. Always use task tools instead of guessing. Call list_tasks before updating, completing, or deleting unless the task ID came from this conversation. Routine task state is not a memory. When creating a task, use a concise title and put the user's complete explanation, constraints, and context in details. Never shorten away meaningful information. Completed tasks stay in task history, but query them only when the user explicitly asks what they finished, completed counts, or past task history. Do not include completed tasks in normal open-task answers.
 
-Second Brain is durable personal memory. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.
+Memories is durable personal context. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved, whether it merged or replaced another memory, and the workspace. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.
 
-Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Second Brain unless the user explicitly asks to remember a specific durable fact from it.`;
+Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.`;
 }
 
 app.post("/api/voice-token", async (c) => {
@@ -722,7 +798,7 @@ app.onError((error, c) => {
 app.notFound((c) => c.json({ error: "not found" }, 404));
 
 export { app };
-export { MyMCP };
+export { MyMCP, MemoriesMCP };
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
@@ -732,9 +808,23 @@ export default {
       if (!emailConfigured(env)) return new Response("Email integration is not configured", { status: 503 });
       return emailMcpHandler.fetch(request, env as any, ctx);
     }
+    if (pathname === "/memories/mcp" || pathname.startsWith("/memories/mcp/")) {
+      if (!await verifyAccessRequest(request, env)) return new Response("Unauthorized", { status: 401 });
+      if (!memoriesConfigured(env)) return new Response("Memories is not configured", { status: 503 });
+      return memoriesMcpHandler.fetch(request, env as any, ctx);
+    }
     return app.fetch(request, env, ctx);
   },
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    if (controller.cron === "0 1 * * *" && memoriesConfigured(env)) {
+      const memoryEnv = env as any;
+      ctx.waitUntil(Promise.all([
+        runNightlyCompression(memoryEnv, ctx),
+        runGraphPass(memoryEnv, ctx),
+        runStalenessPass(memoryEnv, ctx),
+      ]).then(() => undefined));
+      return;
+    }
     ctx.waitUntil(processDueReminders(env));
   },
 } satisfies ExportedHandler<Env>;

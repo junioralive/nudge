@@ -8,7 +8,7 @@ Core endpoints include `GET /api/tasks`, `POST /api/tasks`, `PATCH /api/tasks/:i
 
 Push endpoints include `GET /api/push/status`, `POST /api/push/subscriptions`, `DELETE /api/push/subscriptions/:deviceId`, `POST /api/push/test`, and `POST /api/push/retry`.
 
-Memory endpoints are available only when Second Brain is configured: `/api/memories/recent`, `/api/memories/search`, `POST /api/memories`, and `DELETE /api/memories/:id`.
+Embedded Memory endpoints include recent, semantic search, capture, detail, update, append, lifecycle status, connections, graph, statistics, grounded Ask Memories, health, configuration, export, idempotent paged import, bounded reindexing, and confirmed deletion under `/api/memories/*`. `POST /api/memories/ask` returns source memory IDs and never stores the question or answer. Restore uses `POST /api/memories/import?offset=&edgeOffset=&limit=`; index state and one-batch rebuilds use `GET` and `POST /api/memories/reindex`.
 
 Email endpoints are available only when the embedded Email KV store and encryption key are configured:
 
@@ -23,4 +23,4 @@ Email endpoints are available only when the embedded Email KV store and encrypti
 
 Inbox and search responses contain signed opaque message references. Mutations use short-lived, single-use approval values returned by those APIs. Sending additionally requires `X-Confirm-Send: true`.
 
-The remote MCP endpoint is `POST /email/mcp`. It uses the main Nudge Cloudflare Access audience and Managed OAuth; its tool names, schemas, annotations, and result formats remain compatible with the standalone Email MCP server.
+Remote MCP endpoints are `POST /email/mcp` and `POST /memories/mcp`. Each requires its own path-specific Cloudflare Access audience and Managed OAuth application; assertions are not interchangeable.

@@ -5,7 +5,7 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
   const [pluginsOpen, setPluginsOpen] = useState(false);
 
   useEffect(() => {
-    if (view !== "memories" && view !== "email") setPluginsOpen(false);
+    if (!view.startsWith("memories") && !view.startsWith("email")) setPluginsOpen(false);
   }, [view]);
 
   function navigate(target) {
@@ -28,9 +28,9 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
     <div className={`bottom-nav-wrap ${pluginsOpen ? "plugins-open" : ""}`}>
       <nav className="bottom-nav" aria-label={pluginsOpen ? "Nudge plugins" : "Primary navigation"}>
         {pluginsOpen ? <>
-          {capabilities.secondBrain && <button className={view === "memories" ? "active" : ""} onClick={() => navigate("memories")} aria-label="Memories"><Brain size={18} /></button>}
+          {capabilities.secondBrain && <button className={view.startsWith("memories") ? "active" : ""} onClick={() => navigate("memories-overview")} aria-label="Memories"><Brain size={18} /></button>}
           {talkButton}
-          {capabilities.email && <button className={view === "email" ? "active" : ""} onClick={() => navigate("email")} aria-label="Email"><Mail size={18} /></button>}
+          {capabilities.email && <button className={view.startsWith("email") ? "active" : ""} onClick={() => navigate("email-inbox")} aria-label="Email"><Mail size={18} /></button>}
         </> : <>
           <button className={view === "home" ? "active" : ""} onClick={() => navigate("home")} aria-label="Home"><Home size={19} /></button>
           <button className={view === "calendar" ? "active" : ""} onClick={() => navigate("calendar")} aria-label="Calendar"><CalendarDays size={19} /></button>
