@@ -89,6 +89,7 @@ export interface AccessIdentity {
   sub: string;
   email: string;
   exp?: number;
+  iat?: number;
   source?: "cookie" | "bearer" | "access" | "local";
 }
 

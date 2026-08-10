@@ -324,6 +324,22 @@ body {
 .settings-panel-footer span.success { color: #17633a; }
 .settings-panel-footer button { border: 0; border-radius: 10px; background: var(--ink); color: white; padding: 9px 14px; font-size: 11.5px; font-weight: 750; cursor: pointer; }
 .settings-panel-footer button:disabled { opacity: .45; }
+.recovery-warning { padding: 15px 16px; border: 1px solid #f0d8a7; border-radius: 14px; background: #fff9ed; color: #6f4a0c; }
+.recovery-warning strong { font-size: 12.5px; }
+.recovery-warning p { margin: 5px 0 0; font-size: 11px; line-height: 1.55; }
+.recovery-copy { display: grid; gap: 8px; color: var(--ink-soft); font-size: 11px; }
+.recovery-copy p { display: flex; align-items: center; gap: 7px; margin: 0; }
+.recovery-copy p:first-child svg { color: #17633a; }
+.recovery-copy p:last-child svg { color: #8b2222; }
+.recovery-key-field { width: min(100%, 520px); }
+.recovery-access-note { margin: 0; line-height: 1.55; }
+.recovery-reauth { align-self: flex-start; color: var(--purple-ink); font-size: 11.5px; font-weight: 750; }
+.recovery-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: auto; }
+.recovery-actions > span { flex: 1; color: #8b2222; font-size: 11px; font-weight: 650; }
+.recovery-actions > span.success { color: #17633a; }
+.recovery-actions button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 10px; background: var(--ink); color: white; padding: 10px 14px; font-size: 11.5px; font-weight: 750; cursor: pointer; }
+.recovery-actions button:disabled { opacity: .45; cursor: default; }
+.recovery-actions .spin { animation: settings-spin .85s linear infinite; }
 
 @media (min-width: 900px) {
   .settings-view { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 28px; background: rgba(23, 23, 26, .28); backdrop-filter: blur(10px); animation: settings-backdrop-in .2s ease both; }

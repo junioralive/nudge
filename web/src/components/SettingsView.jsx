@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Brain, Check, KeyRound, LoaderCircle, Mail, Mic2, Plug, UserRound, Volume2, X } from "lucide-react";
+import { BellRing, Brain, Check, Download, KeyRound, LoaderCircle, Mail, Mic2, Plug, ShieldCheck, UserRound, Volume2, X } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
-import { fetchIntegrations, removeIntegration, saveIntegration } from "../api.js";
+import { downloadRecoveryKit, fetchIntegrations, removeIntegration, saveIntegration } from "../api.js";
 
 function availableTimezones(current) {
   const defaults = ["UTC", "Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Singapore", "Australia/Sydney"];
@@ -11,7 +11,7 @@ function availableTimezones(current) {
   return [...new Set([current, ...defaults, ...supported].filter(Boolean))];
 }
 
-export default function SettingsView({ profile, capabilities, onSave, onRestartOnboarding, onClose }) {
+export default function SettingsView({ authMode, profile, capabilities, onSave, onRestartOnboarding, onClose }) {
   const [draft, setDraft] = useState(profile);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("nudge-sound") !== "off");
   const [status, setStatus] = useState("");
@@ -21,6 +21,9 @@ export default function SettingsView({ profile, capabilities, onSave, onRestartO
   const [integrations, setIntegrations] = useState({ gemini: { configured: capabilities.gemini }, microsoft: { configured: capabilities.outlook } });
   const [geminiKey, setGeminiKey] = useState("");
   const [microsoft, setMicrosoft] = useState({ clientId: "", clientSecret: "", tenant: "organizations" });
+  const [recoveryKey, setRecoveryKey] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryReauthUrl, setRecoveryReauthUrl] = useState("");
   const previewRef = useRef(null);
   const timezones = useMemo(() => availableTimezones(draft.timezone), [draft.timezone]);
 
@@ -117,7 +120,24 @@ export default function SettingsView({ profile, capabilities, onSave, onRestartO
     ["notifications", BellRing, "Notifications"],
     ["capabilities", Brain, "Capabilities"],
     ["integrations", Plug, "Integrations"],
+    ["recovery", ShieldCheck, "Backup & recovery"],
   ];
+
+  async function downloadRecovery() {
+    setRecoveryBusy(true);
+    setRecoveryReauthUrl("");
+    setStatus("");
+    try {
+      await downloadRecoveryKit(recoveryKey);
+      setRecoveryKey("");
+      setStatus("Recovery kit downloaded");
+    } catch (error) {
+      setRecoveryReauthUrl(error.reauthUrl || "");
+      setStatus(error.message || "Could not download recovery kit");
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }
 
   async function configureIntegration(provider) {
     setSaving(true); setStatus("");
@@ -224,6 +244,28 @@ export default function SettingsView({ profile, capabilities, onSave, onRestartO
             </section>
           </div>
           {status && <p className={status.includes("connected") || status.includes("removed") ? "success" : "settings-note"}>{status}</p>}
+        </article>}
+
+        {section === "recovery" && <article className="settings-card">
+          <div className="settings-card-title"><ShieldCheck size={18} /><div><h3>Backup & recovery</h3><p>Keep a copy of the keys required to restore this Nudge installation.</p></div></div>
+          <div className="recovery-warning">
+            <strong>Plaintext secrets</strong>
+            <p>The downloaded JSON can unlock encrypted integrations and push configuration. Store it in a password manager or encrypted drive. Never commit or share it.</p>
+          </div>
+          <div className="recovery-copy">
+            <p><Check size={14} /> Includes deployment keys and configured integration credentials.</p>
+            <p><X size={14} /> Does not include tasks, memories, email messages, accounts, or push subscriptions.</p>
+          </div>
+          {authMode === "key" && <label className="settings-field recovery-key-field"><span>Re-enter Nudge key</span><input type="password" autoComplete="current-password" value={recoveryKey} onChange={(event) => { setRecoveryKey(event.target.value); setStatus(""); }} placeholder="Required to download" /></label>}
+          {authMode === "access" && <p className="settings-note recovery-access-note">Cloudflare Access must have verified you within the last five minutes. If requested, sign out and complete email OTP again.</p>}
+          {recoveryReauthUrl && <a className="recovery-reauth" href={recoveryReauthUrl} target="_blank" rel="noreferrer">Reauthenticate with Cloudflare Access</a>}
+          <div className="recovery-actions">
+            <span className={status.includes("downloaded") ? "success" : ""}>{status}</span>
+            <button type="button" onClick={downloadRecovery} disabled={recoveryBusy || (authMode === "key" && recoveryKey.length < 15)}>
+              {recoveryBusy ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
+              {recoveryBusy ? "Preparing…" : "Download recovery kit"}
+            </button>
+          </div>
         </article>}
         </div>
       </div>

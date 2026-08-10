@@ -93,14 +93,14 @@ export default function App() {
       setAuthState(result);
     }} />;
   }
-  return <NudgeApp onLogout={async () => {
+  return <NudgeApp authMode={authState.authMode} onLogout={async () => {
     const result = await logout();
     setAuthState({ authenticated: false, authMode: authState.authMode });
     if (result?.logoutUrl) window.location.assign(result.logoutUrl);
   }} />;
 }
 
-function NudgeApp({ onLogout }) {
+function NudgeApp({ authMode, onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [pushStatus, setPushStatus] = useState({ state: "loading", detail: "Checking this device…" });
   const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false, outlook: false });
@@ -381,7 +381,7 @@ function NudgeApp({ onLogout }) {
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view.startsWith("memories") ? <Suspense fallback={<div className="empty">Opening Memories…</div>}><MemoriesView activeWorkspace={activeWorkspace} section={view.split("-")[1] || "overview"} onSectionChange={(section) => setView(`memories-${section}`)} /></Suspense>
           : view.startsWith("email") ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} accountsInitiallyOpen={view === "email-accounts"} /></Suspense>
-          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onRestartOnboarding={restartOnboarding} onClose={() => setView("home")} />
+          : view === "settings" ? <SettingsView authMode={authMode} profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onRestartOnboarding={restartOnboarding} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
               <button className={`add-toggle-btn ${showAddForm ? "open" : ""}`} onClick={() => setShowAddForm((state) => !state)} aria-label="Toggle add task">

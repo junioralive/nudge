@@ -8,4 +8,10 @@ Memories is embedded and uses Workers AI without a user API key. Gemini remains 
 
 Email is optional and uses an embedded mail service protected by the main Cloudflare Access application. Nudge stores no mailbox credentials in D1. The encrypted Email KV record is the source of truth, mutations require short-lived signatures bound to the exact action, and email bodies are fetched only after explicit user intent. They are never automatically copied to D1 or Memories.
 
+## Recovery kit
+
+Settings → Backup & recovery can download the deployment keys needed to restore encrypted integrations and push configuration. Key mode requires the master Nudge key again. Access mode requires a Cloudflare Access assertion issued within the previous five minutes; older sessions are directed through Cloudflare reauthentication.
+
+The recovery kit is plaintext JSON by explicit design. The response is an attachment with `no-store` caching directives, and the browser does not place it in local storage. Treat the downloaded file like a master password: keep it in a password manager or encrypted drive, never commit it, and delete unsecured copies. It does not contain D1 tasks, Memories, Email KV account records, messages, or push subscriptions; back up those stores separately.
+
 Report security issues privately before public disclosure.

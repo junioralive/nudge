@@ -139,6 +139,8 @@ Optional secrets:
 
 The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. No separate session secret or MCP audience is required.
 
+After login, Settings → Backup & recovery downloads a plaintext recovery kit containing deployment keys and configured integration credentials. Reauthentication is required. Store it securely; application data such as tasks, memories, and email accounts requires separate Cloudflare backups.
+
 ## Optional integrations
 
 Nudge is deliberately useful without external AI. Add these integrations only when you want their specific capabilities.

@@ -75,7 +75,14 @@ export async function verifyAccessRequest(request: Request, env: Env): Promise<A
     if (typeof payload.email !== "string") return null;
     const owner = String(env.NUDGE_OWNER_EMAIL || "").trim().toLowerCase();
     if (owner && payload.email.toLowerCase() !== owner) return null;
-    return { kind: "access", source: "access", sub: payload.sub, email: payload.email, exp: payload.exp };
+    return {
+      kind: "access",
+      source: "access",
+      sub: payload.sub,
+      email: payload.email,
+      exp: payload.exp,
+      iat: typeof payload.iat === "number" ? payload.iat : undefined,
+    };
   } catch {
     return null;
   }
@@ -132,7 +139,14 @@ async function verifyKeySession(request: Request, env: Env): Promise<AccessIdent
   try {
     const { payload } = await jwtVerify(token, await sessionSigningKey(env), { issuer: "nudge:key" });
     if (payload.auth !== "key" || typeof payload.sub !== "string" || typeof payload.exp !== "number") return null;
-    return { kind: "key", source: "cookie", sub: payload.sub, email: "Nudge owner", exp: payload.exp };
+    return {
+      kind: "key",
+      source: "cookie",
+      sub: payload.sub,
+      email: "Nudge owner",
+      exp: payload.exp,
+      iat: typeof payload.iat === "number" ? payload.iat : undefined,
+    };
   } catch {
     return null;
   }

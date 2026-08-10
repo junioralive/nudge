@@ -85,6 +85,36 @@ export function logout() {
   return apiFetch("/api/auth/logout", { method: "POST" });
 }
 
+export async function downloadRecoveryKit(key = "") {
+  const response = await fetch("/api/recovery/export", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-Confirm-Recovery": "download" },
+    body: JSON.stringify(key ? { key } : {}),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const error = new Error(body?.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.reauthUrl = body?.reauthUrl;
+    throw error;
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `nudge-recovery-${new Date().toISOString().slice(0, 10)}.json`;
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function fetchBootstrap() {
   return apiFetch("/api/bootstrap");
 }

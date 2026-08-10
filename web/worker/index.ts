@@ -66,6 +66,7 @@ import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
 import { sealJson } from "./email-core/crypto";
 import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./integrationSecrets";
+import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -145,6 +146,39 @@ app.post("/api/auth/logout", (c) => {
     return c.json({ authenticated: false, authMode: "key" });
   }
   return c.json({ authenticated: false, logoutUrl: accessLogoutUrl(c.req.raw) });
+});
+
+app.post("/api/recovery/export", async (c) => {
+  if (c.req.header("X-Confirm-Recovery") !== "download") return c.json({ error: "Recovery download confirmation is required" }, 400);
+  if (!c.env.LOGIN_RATE_LIMITER) return c.json({ error: "Recovery rate limiter is not configured" }, 503);
+  if (!(await c.env.LOGIN_RATE_LIMITER.limit({ key: `recovery:${clientAddress(c)}` })).success) {
+    return c.json({ error: "Too many recovery attempts. Try again shortly." }, 429);
+  }
+
+  const authMode = c.get("authMode");
+  const identity = c.get("identity");
+  if (authMode === "key") {
+    const body = await jsonBody<{ key?: string }>(c);
+    if (typeof body.key !== "string" || !c.env.NUDGE_AUTH_KEY || !(await constantTimeKeyMatches(body.key, c.env.NUDGE_AUTH_KEY))) {
+      return c.json({ error: "Invalid Nudge key" }, 401);
+    }
+  } else if (authMode === "access") {
+    if (!accessRecoveryIsFresh(identity)) {
+      return c.json({
+        error: "Reauthenticate with Cloudflare Access before downloading your recovery kit.",
+        reauthUrl: accessTeamLogoutUrl(c.env),
+      }, 403);
+    }
+  } else {
+    return c.json({ error: "Recovery downloads are unavailable in local development mode" }, 403);
+  }
+
+  const [gemini, microsoft] = await Promise.all([
+    loadIntegrationSecret(c.env, "gemini"),
+    loadIntegrationSecret(c.env, "microsoft"),
+  ]);
+  const origin = new URL(c.req.url).origin;
+  return recoveryDownloadResponse(buildRecoveryPayload(c.env, origin, authMode, { gemini, microsoft }));
 });
 
 app.get("/api/health", async (c) => {
