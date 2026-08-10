@@ -8,8 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "wrangler types --check --config ../wrangler.jsonc && tsc --noEmit",
-    "test": "vitest run",
-    "deploy": "npm run build && wrangler deploy"
+    "test": "vitest run"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",

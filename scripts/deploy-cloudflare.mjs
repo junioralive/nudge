@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(projectRoot, "web");
 const wranglerConfig = path.join(projectRoot, "wrangler.jsonc");
+const viteDeployConfig = path.join(webRoot, ".wrangler", "deploy", "config.json");
 const USER_SECRET_NAMES = ["NUDGE_AUTH_KEY", "NUDGE_PROFILE_NAME", "APP_TIMEZONE", "GEMINI_API_KEY", "SECOND_BRAIN_URL", "SECOND_BRAIN_TOKEN"];
 
 function run(command, args, options = {}) {
@@ -66,6 +67,13 @@ function suppliedUserSecrets() {
   return Object.fromEntries(USER_SECRET_NAMES.flatMap((name) => values[name] ? [[name, values[name]]] : []));
 }
 
+function generatedWranglerConfig() {
+  if (!existsSync(viteDeployConfig)) throw new Error("Vite deploy configuration was not generated. Run the production build first.");
+  const deploy = JSON.parse(readFileSync(viteDeployConfig, "utf8"));
+  if (!deploy.configPath) throw new Error("Vite deploy configuration does not contain a Worker config path.");
+  return path.resolve(path.dirname(viteDeployConfig), deploy.configPath);
+}
+
 async function main() {
   run("npm", ["run", "build", "-w", "web"]);
 
@@ -83,7 +91,7 @@ async function main() {
 
   let temporaryDirectory = "";
   try {
-    const deployArgs = ["wrangler", "deploy"];
+    const deployArgs = ["wrangler", "deploy", "--config", generatedWranglerConfig()];
     if (Object.keys(secrets).length) {
       temporaryDirectory = mkdtempSync(path.join(tmpdir(), "nudge-secrets-"));
       const secretsFile = path.join(temporaryDirectory, "secrets.json");
