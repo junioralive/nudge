@@ -149,7 +149,11 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated 
     {summary.failed > 0 && <div className="email-warning">One or more accounts could not be reached. Other inboxes are still shown.</div>}
 
     <div className="email-list" aria-busy={loading}>
-      {loading ? <div className="email-empty"><LoaderCircle className="spin" size={22} /><p>Checking your inbox…</p></div>
+      {loading ? <div className="email-skeleton-list" aria-label="Loading inbox">
+        {[1, 2, 3, 4, 5].map((item) => <div className="email-skeleton-row" key={item}>
+          <span className="skeleton-circle" /><span className="skeleton-line sender" /><span className="skeleton-line subject" /><span className="skeleton-line date" />
+        </div>)}
+      </div>
         : messages.length === 0 ? <div className="email-empty"><Inbox size={24} /><h3>No messages found</h3><p>Try another account or search.</p></div>
           : messages.map((item) => <button type="button" className={`email-row ${item.seen ? "seen" : "unread"}`} key={item.ref} onClick={() => openMessage(item)}>
             <span className="email-read-dot" />

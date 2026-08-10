@@ -17,6 +17,8 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
     className={`talk ${voiceOpen ? "active" : ""}`}
     onClick={onTalk}
     aria-label="Talk to Nudge"
+    title="Talk to Nudge"
+    data-tooltip="Talk to Nudge"
     disabled={!capabilities.gemini}
   >
     <AudioLines size={19} />
@@ -32,8 +34,8 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
         </> : <>
           <button className={view === "home" ? "active" : ""} onClick={() => navigate("home")} aria-label="Home"><Home size={19} /></button>
           <button className={view === "calendar" ? "active" : ""} onClick={() => navigate("calendar")} aria-label="Calendar"><CalendarDays size={19} /></button>
-          <button className={view === "notifications" ? "active" : ""} onClick={() => navigate("notifications")} aria-label="Notifications"><Bell size={19} /></button>
           {talkButton}
+          <button className={view === "notifications" ? "active" : ""} onClick={() => navigate("notifications")} aria-label="Notifications"><Bell size={19} /></button>
           <button className="add-btn" onClick={onAdd} aria-label={addOpen ? "Close add task" : "Add task"}>{addOpen ? <X size={19} /> : <Plus size={19} />}</button>
         </>}
       </nav>

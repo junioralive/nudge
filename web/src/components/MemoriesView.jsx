@@ -102,7 +102,13 @@ export default function MemoriesView({ activeWorkspace }) {
       </form>
 
       {message && <div className="memory-message">{message}</div>}
-      {loading ? <div className="empty">Searching your memory…</div> : entries.length === 0 ? (
+      {loading ? <div className="memory-list memory-list-skeleton" aria-label="Loading memories">
+        {[1, 2, 3].map((item) => <article className="memory-card memory-card-skeleton" key={item}>
+          <span className="skeleton-line wide" />
+          <span className="skeleton-line medium" />
+          <div className="memory-meta"><span className="skeleton-chip" /><span className="skeleton-chip short" /></div>
+        </article>)}
+      </div> : entries.length === 0 ? (
         <div className="empty">No matching memories.</div>
       ) : (
         <div className="memory-list">
