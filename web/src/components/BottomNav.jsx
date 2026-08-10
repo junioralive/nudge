@@ -1,6 +1,5 @@
-import { Bell, Brain, CalendarDays, Home, Mail, Plus, Puzzle, X } from "lucide-react";
+import { AudioLines, Bell, Brain, CalendarDays, Home, Mail, Plus, Puzzle, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import Logo from "./Logo.jsx";
 
 export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onNavigate, onTalk, voiceOpen }) {
   const [pluginsOpen, setPluginsOpen] = useState(false);
@@ -20,7 +19,7 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
     aria-label="Talk to Nudge"
     disabled={!capabilities.gemini}
   >
-    <Logo size={18} color={voiceOpen ? "#E787FF" : "#FFFFFF"} />
+    <AudioLines size={19} />
   </button>;
 
   return (

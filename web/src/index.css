@@ -2398,12 +2398,12 @@ button {
 }
 
 .voice-chat .voice-status {
-  width: fit-content;
+  width: auto;
   margin: 0 auto 22px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .74);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink-soft);
   font-size: 11px;
   font-weight: 700;

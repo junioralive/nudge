@@ -24,16 +24,28 @@ self.addEventListener("push", (event) => {
     // Keep the safe generic payload.
   }
   event.waitUntil((async () => {
-    await self.registration.showNotification(data.title || "Nudge", {
+    const notification = {
       body: data.body || "",
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png",
       tag: data.taskId ? `task-${data.taskId}` : "nudge-test",
+      renotify: true,
       vibrate: [180, 80, 180],
       data: { url: data.url || "/", taskId: data.taskId, workspace: data.workspace },
-    });
+    };
+    try {
+      await self.registration.showNotification(data.title || "Nudge", notification);
+    } catch {
+      // Firefox can reject unsupported notification options; keep the alert visible.
+      await self.registration.showNotification(data.title || "Nudge", {
+        body: notification.body,
+        tag: notification.tag,
+        renotify: true,
+        data: notification.data,
+      });
+    }
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  clients.forEach((client) => client.postMessage({ type: "nudge:push-received", payload: data }));
+    clients.forEach((client) => client.postMessage({ type: "nudge:push-received", payload: data }));
   })());
 });
 

@@ -1,4 +1,4 @@
-import { Home, Bell, CalendarDays, Plus, Check, Brain, Mail, Mic } from "lucide-react";
+import { AudioLines, Home, Bell, CalendarDays, Plus, Check, Brain, Mail } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
@@ -109,7 +109,7 @@ export default function Sidebar({
       </div>
 
       {capabilities.gemini && <button className="talk-nav-btn" onClick={onTalk}>
-        <Mic size={16} /> Talk to Nudge
+        <AudioLines size={16} /> Talk to Nudge
       </button>}
       <ProfileMenu name={name} detail={`${totalOpen} open · ${doneToday} done today`} onSettings={() => onNavigate("settings")} onLogout={onLogout} />
     </aside>
