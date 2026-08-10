@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(projectRoot, "web");
+const wranglerConfig = path.join(projectRoot, "wrangler.jsonc");
 const USER_SECRET_NAMES = ["NUDGE_AUTH_KEY", "NUDGE_PROFILE_NAME", "APP_TIMEZONE", "GEMINI_API_KEY", "SECOND_BRAIN_URL", "SECOND_BRAIN_TOKEN"];
 
 function run(command, args, options = {}) {
@@ -34,8 +35,8 @@ function readDevVars(file) {
 }
 
 function existingSecretNames() {
-  const result = spawnSync("npx", ["wrangler", "secret", "list", "--format", "json"], {
-    cwd: webRoot,
+  const result = spawnSync("npx", ["wrangler", "secret", "list", "--format", "json", "--config", wranglerConfig], {
+    cwd: projectRoot,
     encoding: "utf8",
   });
   if (result.status !== 0) return new Set();
@@ -90,7 +91,7 @@ async function main() {
       deployArgs.push("--secrets-file", secretsFile);
     }
     run("npx", deployArgs, { cwd: webRoot });
-    run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote"], { cwd: webRoot });
+    run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", wranglerConfig], { cwd: projectRoot });
   } finally {
     if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   }

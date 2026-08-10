@@ -33,7 +33,10 @@ export default defineConfig({
         ],
       },
     }),
-    cloudflare(),
+    // The root config is the one Cloudflare customizes for Deploy buttons.
+    // Keeping Vite on that same file prevents forked Worker names and secrets
+    // from drifting away from the generated deployment configuration.
+    cloudflare({ configPath: "../wrangler.jsonc" }),
   ],
   build: {
     rollupOptions: {

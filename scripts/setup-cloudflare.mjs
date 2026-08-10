@@ -6,8 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
-const webRoot = path.join(projectRoot, "web");
-const wranglerPath = path.join(webRoot, "wrangler.jsonc");
+const wranglerPath = path.join(projectRoot, "wrangler.jsonc");
 const rl = createInterface({ input, output });
 
 function run(command, args, options = {}) {
@@ -88,21 +87,21 @@ function updateWrangler(config) {
 
 async function ensureDatabase(workerName, config) {
   const databaseName = `${workerName}-db`;
-  const listed = unwrapResult(jsonFromOutput(capture("npx", ["wrangler", "d1", "list", "--json"], webRoot)));
+  const listed = unwrapResult(jsonFromOutput(capture("npx", ["wrangler", "d1", "list", "--json", "--config", wranglerPath], projectRoot)));
   let database = Array.isArray(listed) ? listed.find((item) => item.name === databaseName) : null;
   if (!database) {
     console.log(`Creating D1 database ${databaseName}…`);
-    const created = unwrapResult(jsonFromOutput(capture("npx", ["wrangler", "d1", "create", databaseName, "--json"], webRoot)));
+    const created = unwrapResult(jsonFromOutput(capture("npx", ["wrangler", "d1", "create", databaseName, "--json", "--config", wranglerPath], projectRoot)));
     database = created?.database_id ? { uuid: created.database_id, name: databaseName } : created;
   }
   if (!database?.uuid) throw new Error("Could not determine the D1 database ID from Wrangler.");
-  config.d1_databases = [{ binding: "DB", database_name: database.name || databaseName, database_id: database.uuid, migrations_dir: "migrations" }];
+  config.d1_databases = [{ binding: "DB", database_name: database.name || databaseName, database_id: database.uuid, migrations_dir: "web/migrations" }];
   return database;
 }
 
 async function main() {
   console.log("\nNudge Cloudflare setup\n");
-  run("npx", ["wrangler", "whoami"], { cwd: webRoot });
+  run("npx", ["wrangler", "whoami", "--config", wranglerPath], { cwd: projectRoot });
 
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
@@ -140,30 +139,30 @@ async function main() {
   const vapid = generateVapidKeys();
 
   console.log("\nInstalling required secrets…");
-  run("npx", ["wrangler", "secret", "put", "NUDGE_AUTH_KEY"], { cwd: webRoot, input: `${loginKey}\n` });
-  run("npx", ["wrangler", "secret", "put", "SESSION_SECRET"], { cwd: webRoot, input: `${randomBytes(48).toString("base64url")}\n` });
-  run("npx", ["wrangler", "secret", "put", "VAPID_PUBLIC_KEY"], { cwd: webRoot, input: `${vapid.publicKey}\n` });
-  run("npx", ["wrangler", "secret", "put", "VAPID_PRIVATE_KEY"], { cwd: webRoot, input: `${vapid.privateKey}\n` });
-  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY"], { cwd: webRoot });
-  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN"], { cwd: webRoot });
+  run("npx", ["wrangler", "secret", "put", "NUDGE_AUTH_KEY", "--config", wranglerPath], { cwd: projectRoot, input: `${loginKey}\n` });
+  run("npx", ["wrangler", "secret", "put", "SESSION_SECRET", "--config", wranglerPath], { cwd: projectRoot, input: `${randomBytes(48).toString("base64url")}\n` });
+  run("npx", ["wrangler", "secret", "put", "VAPID_PUBLIC_KEY", "--config", wranglerPath], { cwd: projectRoot, input: `${vapid.publicKey}\n` });
+  run("npx", ["wrangler", "secret", "put", "VAPID_PRIVATE_KEY", "--config", wranglerPath], { cwd: projectRoot, input: `${vapid.privateKey}\n` });
+  if (enableGemini) run("npx", ["wrangler", "secret", "put", "GEMINI_API_KEY", "--config", wranglerPath], { cwd: projectRoot });
+  if (enableSecondBrain) run("npx", ["wrangler", "secret", "put", "SECOND_BRAIN_TOKEN", "--config", wranglerPath], { cwd: projectRoot });
   if (enableEmail) {
     const actionSecret = randomBytes(48).toString("base64url");
-    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_ID"], { cwd: webRoot, input: `${emailAccessClientId}\n` });
-    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_SECRET"], { cwd: webRoot });
-    run("npx", ["wrangler", "secret", "put", "EMAIL_ACTION_SIGNING_SECRET"], { cwd: webRoot, input: `${actionSecret}\n` });
-    run("npx", ["wrangler", "secret", "put", "NUDGE_ACCESS_CLIENT_ID", "--name", emailMcpWorker], { cwd: webRoot, input: `${emailAccessClientId}\n` });
-    run("npx", ["wrangler", "secret", "put", "NUDGE_ACTION_SIGNING_SECRET", "--name", emailMcpWorker], { cwd: webRoot, input: `${actionSecret}\n` });
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_ID", "--config", wranglerPath], { cwd: projectRoot, input: `${emailAccessClientId}\n` });
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACCESS_CLIENT_SECRET", "--config", wranglerPath], { cwd: projectRoot });
+    run("npx", ["wrangler", "secret", "put", "EMAIL_ACTION_SIGNING_SECRET", "--config", wranglerPath], { cwd: projectRoot, input: `${actionSecret}\n` });
+    run("npx", ["wrangler", "secret", "put", "NUDGE_ACCESS_CLIENT_ID", "--name", emailMcpWorker, "--config", wranglerPath], { cwd: projectRoot, input: `${emailAccessClientId}\n` });
+    run("npx", ["wrangler", "secret", "put", "NUDGE_ACTION_SIGNING_SECRET", "--name", emailMcpWorker, "--config", wranglerPath], { cwd: projectRoot, input: `${actionSecret}\n` });
   }
 
   console.log("Applying D1 migrations…");
-  run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote"], { cwd: webRoot });
+  run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", wranglerPath], { cwd: projectRoot });
   const seed = [
     `INSERT INTO settings (key, value) VALUES ('name', ${sqlString(profileName)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     `INSERT INTO settings (key, value) VALUES ('timezone', ${sqlString(timezone)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     ...workspaces.map((name, index) => `INSERT OR IGNORE INTO workspaces (name, sort_order) VALUES (${sqlString(name)}, ${index})`),
   ].join("; ");
-  run("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--command", seed], { cwd: webRoot });
-  run("npm", ["run", "deploy", "-w", "web"]);
+  run("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--command", seed, "--config", wranglerPath], { cwd: projectRoot });
+  run("npm", ["run", "deploy"], { cwd: projectRoot });
 
   const url = customDomain ? `https://${customDomain}` : `https://${workerName}.workers.dev`;
   console.log(`\nNudge is deployed: ${url}`);
