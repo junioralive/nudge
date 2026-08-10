@@ -16,6 +16,7 @@ const USER_SECRET_NAMES = [
   "OUTLOOK_CLIENT_ID",
   "OUTLOOK_CLIENT_SECRET",
 ];
+const REQUIRED_KV_BINDINGS = ["EMAIL_KV", "MEMORY_CONFIG_KV"];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -122,6 +123,10 @@ function ensureCloudflareResources() {
     database.database_id = id;
   }
 
+  config.kv_namespaces ||= [];
+  for (const binding of REQUIRED_KV_BINDINGS) {
+    if (!config.kv_namespaces.some((item) => item.binding === binding)) config.kv_namespaces.push({ binding });
+  }
   let namespaces = unwrap(jsonFromOutput(run("npx", ["wrangler", "kv", "namespace", "list", "--config", wranglerConfig], { capture: true })));
   namespaces = Array.isArray(namespaces) ? namespaces : [];
   for (const namespace of config.kv_namespaces || []) {

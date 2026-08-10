@@ -63,9 +63,9 @@ flowchart LR
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/junioralive/nudge)
 
-The button clones the repository, provisions both D1 databases, both KV namespaces, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
+The button clones the repository, provisions both D1 databases, Vectorize, Workers AI, and Durable Objects, then runs Nudge's build, secret generation, migrations, and deployment scripts. The deploy script creates the two consistently named KV namespaces automatically because Wrangler's Deploy form cannot assign different default names to multiple KV bindings. Resource IDs from the template are validated against the target account and safely replaced with resources using the selected Worker name.
 
-Cloudflare shows two KV selectors because Nudge intentionally separates encrypted Email credentials (`nudge-email`) from Memories configuration (`nudge-memories-config`). They are different bindings and must not be pointed at the same namespace.
+Nudge still keeps encrypted Email credentials in `<worker-name>-email` and Memories configuration in `<worker-name>-memories-config`; users no longer need to create or rename either namespace in the Deploy form.
 
 The button cannot create Cloudflare Zero Trust Access applications or owner-email OTP policies. The first infrastructure deployment therefore stays securely fail-closed until you finish the guided Access step from the generated repository:
 
