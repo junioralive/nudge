@@ -23,4 +23,4 @@ Email endpoints are available only when the embedded Email KV store and encrypti
 
 Inbox and search responses contain signed opaque message references. Mutations use short-lived, single-use approval values returned by those APIs. Sending additionally requires `X-Confirm-Send: true`.
 
-The remote MCP endpoint is `POST /email/mcp`. It uses a separate MCP Cloudflare Access audience and Managed OAuth; its tool names, schemas, annotations, and result formats remain compatible with the standalone Email MCP server.
+The remote MCP endpoint is `POST /email/mcp`. It uses the main Nudge Cloudflare Access audience and Managed OAuth; its tool names, schemas, annotations, and result formats remain compatible with the standalone Email MCP server.

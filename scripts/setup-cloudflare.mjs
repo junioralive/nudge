@@ -236,7 +236,6 @@ async function main() {
     GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
     TEAM_DOMAIN: teamDomain,
     NUDGE_ACCESS_AUD: "pending-access-setup",
-    EMAIL_MCP_ACCESS_AUD: "pending-access-setup",
     NUDGE_OWNER_EMAIL: ownerEmail,
     ...(secondBrainUrl ? { SECOND_BRAIN_URL: secondBrainUrl } : {}),
   };
@@ -247,10 +246,9 @@ async function main() {
   updateWrangler(config);
 
   console.log("Configuring Cloudflare Access applications…");
-  const nudgeAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/*`, "self_hosted", ownerEmail);
-  const emailAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/email/mcp*`, "mcp", ownerEmail, true);
+  const nudgeAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/*`, "self_hosted", ownerEmail, true);
   config.vars.NUDGE_ACCESS_AUD = nudgeAud;
-  config.vars.EMAIL_MCP_ACCESS_AUD = emailAud;
+  delete config.vars.EMAIL_MCP_ACCESS_AUD;
   updateWrangler(config);
 
   console.log("Installing generated and optional secrets…");

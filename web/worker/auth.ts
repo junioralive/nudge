@@ -11,9 +11,11 @@ function isLocalDevelopment(request: Request, env: Env): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
-function expectedAudience(request: Request, env: Env): string | undefined {
+export function expectedAccessAudience(request: Request, env: Env): string | undefined {
   const pathname = new URL(request.url).pathname;
-  if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) return env.EMAIL_MCP_ACCESS_AUD;
+  if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
+    return env.EMAIL_MCP_ACCESS_AUD || env.NUDGE_ACCESS_AUD;
+  }
   return env.NUDGE_ACCESS_AUD;
 }
 
@@ -27,7 +29,7 @@ export async function verifyAccessRequest(request: Request, env: Env): Promise<A
   }
 
   const teamDomain = String(env.TEAM_DOMAIN || "").replace(/\/$/, "");
-  const audience = expectedAudience(request, env);
+  const audience = expectedAccessAudience(request, env);
   const token = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!teamDomain.startsWith("https://") || !audience || !token) return null;
   if (!cachedJwks || cachedTeamDomain !== teamDomain) {

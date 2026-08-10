@@ -81,7 +81,7 @@ The setup wizard asks for:
 - Optional Gemini, Second Brain, and Microsoft Entra credentials
 - An existing Email KV namespace ID when migrating an Email MCP deployment (otherwise one is created)
 
-It then creates or reuses D1 and Email KV, provisions two Cloudflare Access applications, configures email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
+It then creates or reuses D1 and Email KV, provisions one Cloudflare Access application covering `/*`, configures email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
@@ -111,7 +111,7 @@ For local secrets, copy `web/.dev.vars.example` to `web/.dev.vars` and use devel
 
 Required Worker configuration:
 
-- `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, `EMAIL_MCP_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — configured by the setup wizard for Cloudflare Access
+- `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — configured by the setup wizard for Cloudflare Access
 - `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — generated automatically for Web Push delivery
 - `CREDENTIAL_ENCRYPTION_KEY` — generated for new Email KV stores; reuse the existing value during migration
 - `NUDGE_ACTION_SIGNING_SECRET` — generated for one-time browser email approvals
@@ -168,7 +168,7 @@ The permanent MCP endpoint is:
 https://<your-nudge-host>/email/mcp
 ```
 
-The setup wizard creates a path-specific Cloudflare Access MCP application with Managed OAuth, 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow. Register this Microsoft Entra redirect URI:
+The Access application covering `/*` also enables Managed OAuth with 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow. Register this Microsoft Entra redirect URI:
 
 ```text
 https://<your-nudge-host>/api/email/oauth/outlook/callback

@@ -12,7 +12,7 @@ npm run setup:cloudflare
 
 The setup wizard asks for the Worker name, owner email, Cloudflare Access team/account details, optional custom domain, profile settings, optional Gemini/Second Brain credentials, Microsoft Entra credentials, and an existing Email KV namespace ID when migrating.
 
-It provisions or reuses D1 and Email KV, creates the main and path-specific Access applications and owner policies, enables email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds the profile, and deploys the Worker. The temporary Cloudflare API token is used in memory only and is never saved.
+It provisions or reuses D1 and Email KV, creates one Access application covering `/*` with its owner policy, enables email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds the profile, and deploys the Worker. The temporary Cloudflare API token is used in memory only and is never saved.
 
 If no custom domain is chosen, use the `workers.dev` URL printed at the end. If a custom domain is chosen, Cloudflare must have the domain in the same account and DNS must be available for the custom Worker domain.
 

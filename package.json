@@ -31,9 +31,6 @@
       "NUDGE_ACCESS_AUD": {
         "description": "Cloudflare Access audience for the main Nudge application."
       },
-      "EMAIL_MCP_ACCESS_AUD": {
-        "description": "Cloudflare Access audience for the /email/mcp MCP application."
-      },
       "NUDGE_OWNER_EMAIL": {
         "description": "Only email identity allowed to use this private Nudge deployment."
       },

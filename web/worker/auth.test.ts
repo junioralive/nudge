@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifyAccessRequest } from "./auth";
+import { expectedAccessAudience, verifyAccessRequest } from "./auth";
 
 describe("Cloudflare Access authentication", () => {
   it("supports the explicit localhost development bypass", async () => {
@@ -16,5 +16,18 @@ describe("Cloudflare Access authentication", () => {
       NUDGE_ACCESS_AUD: "nudge-audience",
       NUDGE_OWNER_EMAIL: "owner@example.com",
     } as any)).resolves.toBeNull();
+  });
+
+  it("uses the main Access audience for MCP when a dedicated audience is absent", async () => {
+    expect(expectedAccessAudience(new Request("https://nudge.example.com/email/mcp"), {
+      NUDGE_ACCESS_AUD: "nudge-audience",
+    } as any)).toBe("nudge-audience");
+  });
+
+  it("prefers a dedicated MCP audience when configured", () => {
+    expect(expectedAccessAudience(new Request("https://nudge.example.com/email/mcp"), {
+      NUDGE_ACCESS_AUD: "nudge-audience",
+      EMAIL_MCP_ACCESS_AUD: "mcp-audience",
+    } as any)).toBe("mcp-audience");
   });
 });
