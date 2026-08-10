@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { LoaderCircle, Plus, Volume2, X } from "lucide-react";
 import {
-  bootstrapFromLocal,
   completeTask,
   createTask,
   createWorkspace,
@@ -13,6 +12,8 @@ import {
   getSession,
   logout,
   updateProfile,
+  completeOnboarding,
+  resetOnboarding,
   updateTask,
   updateWorkspace,
 } from "./api.js";
@@ -43,6 +44,9 @@ import TaskEditor from "./components/TaskEditor.jsx";
 import SettingsView from "./components/SettingsView.jsx";
 import WorkspaceDialog from "./components/WorkspaceDialog.jsx";
 import EmailDraftDialog from "./components/EmailDraftDialog.jsx";
+import { PlaybackQueue } from "./voice/playbackQueue.ts";
+import { VoiceConnectionManager } from "./voice/connectionManager.ts";
+import { ASSISTANT_VOICES } from "./voice/voiceCatalog.js";
 
 const VoicePanel = lazy(() => import("./components/VoicePanel.jsx"));
 const MemoriesView = lazy(() => import("./components/MemoriesView.jsx"));
@@ -111,6 +115,7 @@ function NudgeApp({ onLogout }) {
   const [loadError, setLoadError] = useState("");
   const [editingTask, setEditingTask] = useState(null);
   const [emailDraft, setEmailDraft] = useState(null);
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
   const addInputRef = useRef(null);
 
   async function refresh() {
@@ -127,14 +132,12 @@ function NudgeApp({ onLogout }) {
       try {
         let bootstrap = await fetchBootstrap();
         setCapabilities(await fetchCapabilities());
-        if (!bootstrap.initialized) {
-          await bootstrapFromLocal(getName(), getWorkspaces());
-          bootstrap = await fetchBootstrap();
-        }
+        if (!bootstrap.initialized) bootstrap = { ...bootstrap, onboarding_required: true, name: "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", workspaces: ["Personal", "Work", "Startup"], workspace_colors: {} };
+        setOnboardingRequired(Boolean(bootstrap.onboarding_required));
         setNameState(bootstrap.name);
         setProfile({
           name: bootstrap.name,
-          timezone: bootstrap.timezone,
+          timezone: bootstrap.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
           assistantGender: bootstrap.assistant_gender || "she",
           assistantVoice: bootstrap.assistant_voice || "Zephyr",
         });
@@ -334,6 +337,22 @@ function NudgeApp({ onLogout }) {
   const doneToday = tasks.filter((task) => task.done_at && isToday(task.done_at)).length;
   const calendarTasks = activeWorkspace === "All" ? openTasks : openTasks.filter((task) => task.workspace === activeWorkspace);
 
+  async function finishOnboarding(values) {
+    await completeOnboarding(values);
+    const next = await fetchBootstrap();
+    setOnboardingRequired(Boolean(next.onboarding_required));
+    setNameState(next.name);
+    setProfile({ name: next.name, timezone: next.timezone, assistantGender: next.assistant_gender, assistantVoice: next.assistant_voice });
+    saveName(next.name);
+    setWorkspaces(next.workspaces);
+    setWorkspaceColors(next.workspace_colors || {});
+  }
+
+  async function restartOnboarding() {
+    await resetOnboarding();
+    setOnboardingRequired(true);
+  }
+
   return (
     <div className="shell">
       <Sidebar
@@ -358,7 +377,7 @@ function NudgeApp({ onLogout }) {
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view.startsWith("memories") ? <Suspense fallback={<div className="empty">Opening Memories…</div>}><MemoriesView activeWorkspace={activeWorkspace} section={view.split("-")[1] || "overview"} onSectionChange={(section) => setView(`memories-${section}`)} /></Suspense>
           : view.startsWith("email") ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} accountsInitiallyOpen={view === "email-accounts"} /></Suspense>
-          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onClose={() => setView("home")} />
+          : view === "settings" ? <SettingsView profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onRestartOnboarding={restartOnboarding} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
               <button className={`add-toggle-btn ${showAddForm ? "open" : ""}`} onClick={() => setShowAddForm((state) => !state)} aria-label="Toggle add task">
@@ -376,6 +395,50 @@ function NudgeApp({ onLogout }) {
       {editingTask && <TaskEditor task={editingTask} workspaces={workspaces} onClose={() => setEditingTask(null)} onSave={async (values) => { await handleEdit(editingTask, values); setEditingTask(null); }} />}
       {workspaceDialog && <WorkspaceDialog dialog={workspaceDialog} currentColor={workspaceColors[workspaceDialog.workspace]} onClose={() => setWorkspaceDialog(null)} onConfirm={handleWorkspaceDialogConfirm} />}
       {emailDraft && <EmailDraftDialog initial={emailDraft} onClose={() => setEmailDraft(null)} />}
+      {onboardingRequired && <OnboardingDialog initial={profile} capabilities={capabilities} onComplete={finishOnboarding} />}
     </div>
   );
+}
+
+function OnboardingDialog({ initial, capabilities, onComplete }) {
+  const [draft, setDraft] = useState({ name: initial.name || "", timezone: initial.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", assistant_gender: initial.assistantGender || "she", assistant_voice: initial.assistantVoice || "Zephyr" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const previewRef = useRef(null);
+  const voices = ASSISTANT_VOICES;
+  const timezones = [draft.timezone, "UTC", "Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Singapore"].filter((value, index, list) => value && list.indexOf(value) === index);
+  async function submit(event) {
+    event.preventDefault(); setSaving(true); setError("");
+    try { await onComplete(draft); } catch (e) { setError(e.message || "Could not save setup"); } finally { setSaving(false); }
+  }
+  useEffect(() => () => previewRef.current?.(), []);
+  async function previewVoice() {
+    previewRef.current?.(); setPreviewing(true); setError("");
+    const playback = new PlaybackQueue(); let connection; let timer; let disposed = false; let resolveOpen;
+    const opened = new Promise((resolve) => { resolveOpen = resolve; });
+    const cleanup = () => { if (disposed) return; disposed = true; clearTimeout(timer); connection?.disconnect(); playback.dispose(); previewRef.current = null; setPreviewing(false); };
+    previewRef.current = cleanup;
+    try {
+      await updateProfile({ name: draft.name.trim() || "User", timezone: draft.timezone, assistant_gender: draft.assistant_gender, assistant_voice: draft.assistant_voice });
+      await playback.init();
+      connection = new VoiceConnectionManager({
+        onOpen: () => resolveOpen(true), onAudio: (audio) => playback.enqueueAudio(audio), onModelText: () => {}, onTranscript: () => {}, onInterrupted: () => {}, onToolResult: () => {}, onGoAway: () => {}, onReconnecting: () => {}, onClose: () => {},
+        onError: (message) => { resolveOpen(false); setError(message || "Could not preview this voice"); cleanup(); },
+        onTurnComplete: () => { connection.disconnect(); const drain = () => playback.bufferedMs() > 0 ? timer = setTimeout(drain, 150) : cleanup(); timer = setTimeout(drain, 150); },
+      });
+      await connection.connect(); if (!await opened) return;
+      connection.sendText("Voice preview only. Say exactly: Hi, I'm Nudge. This is how I sound.");
+    } catch (e) { setError(e.message || "Could not preview this voice"); cleanup(); }
+  }
+  return <div className="onboarding-overlay"><form className="onboarding-card" onSubmit={submit}>
+    <div className="onboarding-mark"><span>~</span></div><p className="eyebrow">WELCOME TO NUDGE</p><h1>Let’s make Nudge yours.</h1><p className="onboarding-copy">A few quick choices personalize your assistant. You can change them later in Settings.</p>
+    <label>What should Nudge call you?<input autoFocus required maxLength={80} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Your name" /></label>
+    <label>Timezone<select value={draft.timezone} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })}>{timezones.map((value) => <option key={value}>{value}</option>)}</select></label>
+    <fieldset><legend>Assistant</legend><div className="onboarding-segment">{["she", "he"].map((value) => <button type="button" key={value} className={draft.assistant_gender === value ? "active" : ""} onClick={() => setDraft({ ...draft, assistant_gender: value })}>{value === "she" ? "She" : "He"}</button>)}</div></fieldset>
+    <label>Voice<select value={draft.assistant_voice} onChange={(e) => setDraft({ ...draft, assistant_voice: e.target.value })}>{voices.map(({ name, tone }) => <option value={name} key={name}>{name} · {tone}</option>)}</select></label>
+    <button type="button" className="voice-preview-btn" onClick={previewVoice} disabled={!capabilities.gemini || previewing}>{previewing ? <LoaderCircle className="spin" size={15} /> : <Volume2 size={15} />}{previewing ? "Playing preview…" : `Preview ${draft.assistant_voice}`}</button>
+    {!capabilities.gemini && <p className="onboarding-hint">Voice previews become available after Gemini is connected in Settings.</p>}
+    {error && <p className="onboarding-error">{error}</p>}<button className="onboarding-submit" disabled={saving}>{saving ? "Saving…" : "Start using Nudge"}</button>
+  </form></div>;
 }

@@ -2,6 +2,7 @@
 export interface MailEnv {
 	EMAIL_KV: KVNamespace;
 	CREDENTIAL_ENCRYPTION_KEY: string;
+	NUDGE_ENCRYPTION_KEY?: string;
 	OUTLOOK_CLIENT_ID?: string;
 	OUTLOOK_CLIENT_SECRET?: string;
 	OUTLOOK_TENANT?: string;

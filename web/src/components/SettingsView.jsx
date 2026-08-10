@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Brain, Check, LoaderCircle, Mail, Mic2, UserRound, Volume2, X } from "lucide-react";
+import { BellRing, Brain, Check, KeyRound, LoaderCircle, Mail, Mic2, Plug, UserRound, Volume2, X } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
+import { fetchIntegrations, removeIntegration, saveIntegration } from "../api.js";
 
 function availableTimezones(current) {
   const defaults = ["UTC", "Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Singapore", "Australia/Sydney"];
@@ -10,17 +11,21 @@ function availableTimezones(current) {
   return [...new Set([current, ...defaults, ...supported].filter(Boolean))];
 }
 
-export default function SettingsView({ profile, capabilities, onSave, onClose }) {
+export default function SettingsView({ profile, capabilities, onSave, onRestartOnboarding, onClose }) {
   const [draft, setDraft] = useState(profile);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem("nudge-sound") !== "off");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [section, setSection] = useState("profile");
+  const [integrations, setIntegrations] = useState({ gemini: { configured: capabilities.gemini }, microsoft: { configured: capabilities.outlook } });
+  const [geminiKey, setGeminiKey] = useState("");
+  const [microsoft, setMicrosoft] = useState({ clientId: "", clientSecret: "", tenant: "organizations" });
   const previewRef = useRef(null);
   const timezones = useMemo(() => availableTimezones(draft.timezone), [draft.timezone]);
 
   useEffect(() => setDraft(profile), [profile]);
+  useEffect(() => { fetchIntegrations().then(setIntegrations).catch(() => {}); }, []);
   useEffect(() => () => previewRef.current?.(), []);
   useEffect(() => {
     const closeOnEscape = (event) => event.key === "Escape" && onClose?.();
@@ -111,7 +116,31 @@ export default function SettingsView({ profile, capabilities, onSave, onClose })
     ["assistant", Mic2, "Assistant"],
     ["notifications", BellRing, "Notifications"],
     ["capabilities", Brain, "Capabilities"],
+    ["integrations", Plug, "Integrations"],
   ];
+
+  async function configureIntegration(provider) {
+    setSaving(true); setStatus("");
+    try {
+      const values = provider === "gemini" ? { apiKey: geminiKey } : microsoft;
+      await saveIntegration(provider, values);
+      setIntegrations((current) => ({ ...current, [provider]: { configured: true } }));
+      if (provider === "gemini") setGeminiKey("");
+      else setMicrosoft({ clientId: "", clientSecret: "", tenant: microsoft.tenant });
+      setStatus(`${provider === "gemini" ? "Gemini" : "Microsoft"} connected`);
+    } catch (error) { setStatus(error.message || "Could not save integration"); }
+    finally { setSaving(false); }
+  }
+
+  async function disconnectIntegration(provider) {
+    setSaving(true); setStatus("");
+    try {
+      await removeIntegration(provider);
+      setIntegrations((current) => ({ ...current, [provider]: { configured: false } }));
+      setStatus(`${provider === "gemini" ? "Gemini" : "Microsoft"} removed`);
+    } catch (error) { setStatus(error.message || "Could not remove integration"); }
+    finally { setSaving(false); }
+  }
 
   const saveFooter = <footer className="settings-panel-footer">
     <span className={status.includes("saved") ? "success" : ""}>{status}</span>
@@ -137,6 +166,7 @@ export default function SettingsView({ profile, capabilities, onSave, onClose })
             <label className="settings-field"><span>Display name</span><input maxLength={80} value={draft.name} onChange={(event) => update("name", event.target.value)} /></label>
             <label className="settings-field"><span>Timezone</span><select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)}>{timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label>
           </div>
+          <button type="button" className="settings-secondary-btn" onClick={onRestartOnboarding}>Run onboarding again</button>
           {saveFooter}
         </article>}
 
@@ -173,6 +203,27 @@ export default function SettingsView({ profile, capabilities, onSave, onClose })
             <div className="capability-row"><span><strong>Push notifications</strong><small>Due-time reminders on registered devices</small></span><b className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
             <div className="capability-row"><span><strong>Email assistant</strong><small>Private, on-demand access to connected inboxes</small></span><b className={capabilities.email ? "ready" : "off"}>{capabilities.email ? <><Mail size={13} /> Ready</> : "Not configured"}</b></div>
           </div>
+        </article>}
+
+        {section === "integrations" && <article className="settings-card">
+          <div className="settings-card-title"><Plug size={18} /><div><h3>Integrations</h3><p>Optional services. Secrets are encrypted and never shown again.</p></div></div>
+          <div className="integration-settings-list">
+            <section className="integration-settings-card">
+              <div className="integration-settings-head"><span><KeyRound size={16} /><strong>Google Gemini</strong></span><b className={integrations.gemini?.configured ? "ready" : "off"}>{integrations.gemini?.configured ? "Connected" : "Optional"}</b></div>
+              <p>Enables live voice conversations and voice previews.</p>
+              <label className="settings-field"><span>API key</span><input type="password" autoComplete="off" value={geminiKey} onChange={(event) => setGeminiKey(event.target.value)} placeholder={integrations.gemini?.configured ? "Enter a new key to replace it" : "Google AI Studio API key"} /></label>
+              <div className="integration-settings-actions"><button type="button" onClick={() => configureIntegration("gemini")} disabled={saving || !geminiKey.trim()}>Save Gemini</button>{integrations.gemini?.configured && <button type="button" className="settings-secondary-btn" onClick={() => disconnectIntegration("gemini")} disabled={saving}>Remove</button>}</div>
+            </section>
+            <section className="integration-settings-card">
+              <div className="integration-settings-head"><span><Mail size={16} /><strong>Microsoft Outlook</strong></span><b className={integrations.microsoft?.configured ? "ready" : "off"}>{integrations.microsoft?.configured ? "Connected" : "Optional"}</b></div>
+              <p>Enables Microsoft account connection. Custom IMAP/SMTP works without this.</p>
+              <label className="settings-field"><span>Application client ID</span><input autoComplete="off" value={microsoft.clientId} onChange={(event) => setMicrosoft({ ...microsoft, clientId: event.target.value })} /></label>
+              <label className="settings-field"><span>Client secret</span><input type="password" autoComplete="off" value={microsoft.clientSecret} onChange={(event) => setMicrosoft({ ...microsoft, clientSecret: event.target.value })} placeholder={integrations.microsoft?.configured ? "Enter a new secret to replace it" : "Microsoft Entra client secret"} /></label>
+              <label className="settings-field"><span>Tenant</span><select value={microsoft.tenant} onChange={(event) => setMicrosoft({ ...microsoft, tenant: event.target.value })}><option value="organizations">Organizations</option><option value="consumers">Personal Microsoft accounts</option><option value="common">Both</option></select></label>
+              <div className="integration-settings-actions"><button type="button" onClick={() => configureIntegration("microsoft")} disabled={saving || !microsoft.clientId.trim() || !microsoft.clientSecret.trim()}>Save Microsoft</button>{integrations.microsoft?.configured && <button type="button" className="settings-secondary-btn" onClick={() => disconnectIntegration("microsoft")} disabled={saving}>Remove</button>}</div>
+            </section>
+          </div>
+          {status && <p className={status.includes("connected") || status.includes("removed") ? "success" : "settings-note"}>{status}</p>}
         </article>}
         </div>
       </div>

@@ -24,7 +24,13 @@ const MESSAGE_REFERENCE_SECONDS = 60 * 60;
 const APPROVAL_SECONDS = 10 * 60;
 
 export function emailConfigured(env: Env): boolean {
-  return Boolean(env.EMAIL_KV && isValidEncryptionKey(env.CREDENTIAL_ENCRYPTION_KEY));
+  return Boolean(env.EMAIL_KV && isValidEncryptionKey(env.NUDGE_ENCRYPTION_KEY || env.CREDENTIAL_ENCRYPTION_KEY));
+}
+
+export function emailEncryptionKey(env: Env): string {
+  const key = env.NUDGE_ENCRYPTION_KEY || env.CREDENTIAL_ENCRYPTION_KEY;
+  if (!isValidEncryptionKey(key)) throw new EmailMcpError("Email encryption is not configured", 503);
+  return key!;
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {
@@ -135,7 +141,7 @@ export async function consumeEmailApproval(env: Env, token: string, action: Appr
 
 export async function callEmailTool(env: Env, name: string, args: Record<string, unknown> = {}): Promise<any> {
   if (!emailConfigured(env)) throw new EmailMcpError("Email integration is not configured", 503);
-  const store = new AccountStore(env.EMAIL_KV!, env.CREDENTIAL_ENCRYPTION_KEY!);
+  const store = new AccountStore(env.EMAIL_KV!, emailEncryptionKey(env));
   const mail = new MailService(store, { clientId: env.OUTLOOK_CLIENT_ID, clientSecret: env.OUTLOOK_CLIENT_SECRET });
   switch (name) {
     case "email_list_accounts": {

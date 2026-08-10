@@ -219,6 +219,21 @@ body {
 
 /* Profile menu */
 .profile-menu { position: relative; width: 100%; }
+.onboarding-overlay { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; padding: 22px; background: rgba(25, 20, 31, .28); backdrop-filter: blur(14px); }
+.onboarding-card { width: min(100%, 450px); display: grid; gap: 15px; padding: 34px; border: 1px solid rgba(255,255,255,.75); border-radius: 28px; background: var(--surface); box-shadow: 0 28px 90px rgba(42, 18, 58, .22); }
+.onboarding-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; background: #f1d8ff; color: #6f238c; font-size: 34px; font-weight: 900; line-height: 1; }
+.onboarding-card .eyebrow { margin: 5px 0 -8px; color: var(--purple-ink); font-size: 10px; font-weight: 850; letter-spacing: .14em; }
+.onboarding-card h1 { margin: 0; font-size: 28px; letter-spacing: -.04em; }
+.onboarding-copy { margin: -5px 0 4px; color: var(--ink-soft); line-height: 1.5; font-size: 13px; }
+.onboarding-card label, .onboarding-card fieldset { display: grid; gap: 7px; border: 0; padding: 0; margin: 0; color: var(--ink-soft); font-size: 11px; font-weight: 750; }
+.onboarding-card input, .onboarding-card select { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+.onboarding-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.onboarding-segment button { border: 1px solid var(--border); border-radius: 11px; padding: 11px; background: var(--surface); color: var(--ink-soft); font: inherit; font-weight: 750; cursor: pointer; }
+.onboarding-segment button.active { border-color: var(--purple); background: #f1d8ff; color: var(--purple-ink); }
+.onboarding-submit { margin-top: 5px; border: 0; border-radius: 13px; padding: 13px; background: var(--ink); color: white; font: inherit; font-weight: 800; cursor: pointer; }
+.onboarding-submit:disabled { opacity: .55; cursor: default; }
+.onboarding-error { margin: 0; color: #a12c2c; font-size: 12px; }
+.settings-secondary-btn { align-self: flex-start; margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .profile-trigger {
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px;
   border: 0; border-radius: 14px; background: transparent; color: var(--ink); cursor: pointer;
@@ -1687,6 +1702,17 @@ button {
 .today-card:hover .today-card-date {
   transform: translateY(-50%) translateX(3px);
 }
+
+.integration-settings-list { display: grid; gap: 14px; }
+.integration-settings-card { border: 1px solid #e7e7e7; border-radius: 18px; padding: 18px; background: #fafafa; }
+.integration-settings-card > p { margin: 6px 0 16px; color: #858585; font-size: 13px; }
+.integration-settings-head, .integration-settings-head > span, .integration-settings-actions { display: flex; align-items: center; gap: 9px; }
+.integration-settings-head { justify-content: space-between; }
+.integration-settings-head b { font-size: 11px; padding: 5px 8px; border-radius: 999px; }
+.integration-settings-head b.ready { color: #176c47; background: #e5f6ed; }
+.integration-settings-head b.off { color: #777; background: #ececec; }
+.integration-settings-actions { justify-content: flex-end; margin-top: 12px; }
+.integration-settings-actions > button:first-child { border: 0; border-radius: 11px; padding: 10px 14px; background: #18181b; color: white; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

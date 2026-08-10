@@ -31,26 +31,17 @@
       "NUDGE_ACCESS_AUD": {
         "description": "Cloudflare Access audience for the main Nudge application."
       },
+      "MCP_ACCESS_AUD": {
+        "description": "Cloudflare Access audience shared by the path-specific Email and Memories MCP destinations."
+      },
       "NUDGE_OWNER_EMAIL": {
         "description": "Only email identity allowed to use this private Nudge deployment."
-      },
-      "NUDGE_PROFILE_NAME": {
-        "description": "Optional initial display name, for example Junior. You can change it later in Nudge Settings."
-      },
-      "APP_TIMEZONE": {
-        "description": "Optional initial IANA timezone, for example Asia/Kolkata. You can change it later in Nudge Settings."
-      },
-      "NUDGE_ASSISTANT_GENDER": {
-        "description": "Optional assistant voice persona: she or he. Defaults to she."
       },
       "GEMINI_API_KEY": {
         "description": "Optional. Add a Google AI Studio API key to enable the live voice assistant. Leave blank to disable."
       },
-      "MEMORIES_MCP_ACCESS_AUD": {
-        "description": "Cloudflare Access audience for the path-specific /memories/mcp application."
-      },
-      "CREDENTIAL_ENCRYPTION_KEY": {
-        "description": "Required base64 32-byte key for encrypted Email KV records. Existing deployments must reuse their current key."
+      "NUDGE_ENCRYPTION_KEY": {
+        "description": "Required generated base64 32-byte key for encrypted Email and integration records. Existing deployments may temporarily use CREDENTIAL_ENCRYPTION_KEY."
       },
       "NUDGE_ACTION_SIGNING_SECRET": {
         "description": "Required generated secret for one-time Nudge email action approvals."

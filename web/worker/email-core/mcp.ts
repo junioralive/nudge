@@ -129,7 +129,7 @@ export class MyMCP extends McpAgent<McpEnv> {
 
 	async init() {
 		const env = (this as unknown as { env: MailEnv }).env;
-		const store = new AccountStore(env.EMAIL_KV, env.CREDENTIAL_ENCRYPTION_KEY);
+		const store = new AccountStore(env.EMAIL_KV, env.NUDGE_ENCRYPTION_KEY || env.CREDENTIAL_ENCRYPTION_KEY!);
 		const mail = new MailService(store, {
 			clientId: env.OUTLOOK_CLIENT_ID,
 			clientSecret: env.OUTLOOK_CLIENT_SECRET,

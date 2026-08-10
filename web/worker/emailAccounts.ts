@@ -1,6 +1,7 @@
 import { decodeJwt, createRemoteJWKSet, jwtVerify } from "jose";
 import { openJson, sealJson } from "./email-core/crypto";
 import { AccountStore } from "./email-core/mail/account-store";
+import { emailEncryptionKey } from "./email";
 import { MailService } from "./email-core/mail/mail-service";
 import type { AccountAuth, MailAccount } from "./email-core/mail/types";
 import { assertValidOutlookOAuthCallback, createOutlookOAuthState, type OutlookOAuthState } from "./email-core/outlook-oauth";
@@ -10,8 +11,8 @@ const OUTLOOK_SCOPES = "openid profile email offline_access https://outlook.offi
 const microsoftJwks = createRemoteJWKSet(new URL("https://login.microsoftonline.com/common/discovery/v2.0/keys"));
 
 export function emailStore(env: Env): AccountStore {
-  if (!env.EMAIL_KV || !env.CREDENTIAL_ENCRYPTION_KEY) throw new Error("Email storage is not configured");
-  return new AccountStore(env.EMAIL_KV, env.CREDENTIAL_ENCRYPTION_KEY);
+  if (!env.EMAIL_KV) throw new Error("Email storage is not configured");
+  return new AccountStore(env.EMAIL_KV, emailEncryptionKey(env));
 }
 
 export function emailService(env: Env): MailService {
@@ -19,7 +20,7 @@ export function emailService(env: Env): MailService {
 }
 
 export function outlookConfigured(env: Env): boolean {
-  return Boolean(env.OUTLOOK_CLIENT_ID && env.OUTLOOK_CLIENT_SECRET && env.CREDENTIAL_ENCRYPTION_KEY);
+  return Boolean(env.OUTLOOK_CLIENT_ID && env.OUTLOOK_CLIENT_SECRET && env.EMAIL_KV && (env.NUDGE_ENCRYPTION_KEY || env.CREDENTIAL_ENCRYPTION_KEY));
 }
 
 function outlookConfig(env: Env): { clientId: string; clientSecret: string; tenant: string } {
@@ -68,7 +69,7 @@ export async function startOutlookOAuth(env: Env, request: Request, displayName:
     code_challenge_method: "S256",
     prompt: "select_account",
   }).toString();
-  return { url: authorize.toString(), cookie: oauthCookie(await sealJson(oauthState, env.CREDENTIAL_ENCRYPTION_KEY!), request.url.startsWith("https://")) };
+  return { url: authorize.toString(), cookie: oauthCookie(await sealJson(oauthState, emailEncryptionKey(env)), request.url.startsWith("https://")) };
 }
 
 async function verifyMicrosoftIdentity(idToken: string, clientId: string, nonce: string): Promise<{ email: string }> {
@@ -87,7 +88,7 @@ export async function finishOutlookOAuth(env: Env, request: Request): Promise<{ 
   const returnedState = new URL(request.url).searchParams.get("state");
   const sealedState = cookieValue(request, "nudge_outlook_oauth");
   if (!code || !returnedState || !sealedState) throw new Error("Outlook authorization expired");
-  const oauthState = await openJson<OutlookOAuthState>(sealedState, env.CREDENTIAL_ENCRYPTION_KEY!);
+  const oauthState = await openJson<OutlookOAuthState>(sealedState, emailEncryptionKey(env));
   assertValidOutlookOAuthCallback(oauthState, returnedState);
   const body = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, grant_type: "authorization_code", code, redirect_uri: outlookRedirectUri(request), code_verifier: oauthState.codeVerifier, scope: OUTLOOK_SCOPES });
   const response = await fetch(`https://login.microsoftonline.com/${config.tenant}/oauth2/v2.0/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body });

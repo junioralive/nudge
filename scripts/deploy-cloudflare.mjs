@@ -10,6 +10,7 @@ const wranglerConfig = path.join(projectRoot, "wrangler.jsonc");
 const viteDeployConfig = path.join(webRoot, ".wrangler", "deploy", "config.json");
 const USER_SECRET_NAMES = [
   "GEMINI_API_KEY",
+  "NUDGE_ENCRYPTION_KEY",
   "CREDENTIAL_ENCRYPTION_KEY",
   "NUDGE_ACTION_SIGNING_SECRET",
   "OUTLOOK_CLIENT_ID",
@@ -125,8 +126,8 @@ async function main() {
 
   const existing = existingSecretNames();
   const secrets = suppliedUserSecrets();
-  if (!existing.has("CREDENTIAL_ENCRYPTION_KEY") && !secrets.CREDENTIAL_ENCRYPTION_KEY) {
-    secrets.CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  if (!existing.has("NUDGE_ENCRYPTION_KEY") && !existing.has("CREDENTIAL_ENCRYPTION_KEY") && !secrets.NUDGE_ENCRYPTION_KEY && !secrets.CREDENTIAL_ENCRYPTION_KEY) {
+    secrets.NUDGE_ENCRYPTION_KEY = randomBytes(32).toString("base64");
   }
   if (!existing.has("NUDGE_ACTION_SIGNING_SECRET")) secrets.NUDGE_ACTION_SIGNING_SECRET ||= randomBytes(48).toString("base64url");
   const hasVapidPublic = existing.has("VAPID_PUBLIC_KEY");

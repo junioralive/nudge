@@ -75,13 +75,10 @@ npm run setup:cloudflare
 
 The setup wizard asks for:
 
-- Worker name and optional custom domain
-- Your owner email, Cloudflare Access team domain, account ID, and temporary `Access: Apps and Policies Write` API token
-- Your display name, timezone, assistant gender (`she` or `he`), and initial workspaces
-- Optional Gemini, Second Brain, and Microsoft Entra credentials
-- An existing Email KV namespace ID when migrating an Email MCP deployment (otherwise one is created)
+- Your owner email and a temporary Cloudflare API token with Access application/policy write permission
+- Optional flags: `--domain`, `--worker-name`, and `--redirect-uri`
 
-It then creates or reuses D1 and Email KV, provisions one Cloudflare Access application covering `/*`, configures email OTP and Managed OAuth, generates VAPID/encryption/action secrets, applies migrations, seeds your profile, and deploys. Gemini and Second Brain are **off by default**. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
+It then creates or reuses the `nudge-*` D1, KV, and Vectorize resources, provisions one Cloudflare Access application for Nudge and one shared Managed OAuth application for both MCP paths, generates VAPID/encryption/action secrets, applies migrations, and deploys. First-login onboarding collects your profile. Gemini and Microsoft Outlook are optional Settings integrations. The temporary Cloudflare API token is held in memory only and is never written to disk, Worker secrets, or logs.
 
 If you skip a custom domain, Cloudflare keeps the `workers.dev` URL available.
 
@@ -113,16 +110,14 @@ Required Worker configuration:
 
 - `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL` — configured by the setup wizard for Cloudflare Access
 - `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` — generated automatically for Web Push delivery
-- `CREDENTIAL_ENCRYPTION_KEY` — generated for new Email KV stores; reuse the existing value during migration
+- `NUDGE_ENCRYPTION_KEY` — generated for new Email KV and integration stores; existing deployments temporarily accept `CREDENTIAL_ENCRYPTION_KEY`
 - `NUDGE_ACTION_SIGNING_SECRET` — generated for one-time browser email approvals
 
 Optional secrets:
 
 - `GEMINI_API_KEY` — enables the voice assistant
-- `SECOND_BRAIN_URL` — connects your deployed Second Brain
-- `SECOND_BRAIN_TOKEN` — enables memory capture and recall
 
-Configuration variables include `APP_TIMEZONE`, `NUDGE_PROFILE_NAME`, and `VAPID_SUBJECT`. The app uses one maintained Gemini Live model. Assistant gender, voice, timezone, and display name are changed inside Nudge Settings. `NUDGE_AUTH_KEY` and `SESSION_SECRET` are not used.
+Configuration variables include `VAPID_SUBJECT`, `TEAM_DOMAIN`, `NUDGE_ACCESS_AUD`, `MCP_ACCESS_AUD`, and `NUDGE_OWNER_EMAIL`. The first-login onboarding stores display name, timezone, assistant gender, and voice in D1. `NUDGE_AUTH_KEY` and `SESSION_SECRET` are not used.
 
 ## Optional integrations
 
@@ -144,19 +139,9 @@ Setup:
 
 Without Gemini, Nudge keeps task management and standard reminders working and hides voice controls.
 
-### Second Brain — durable memory and semantic recall
+### Memories — durable memory and semantic recall
 
-[Second Brain Cloudflare](https://github.com/rahilp/second-brain-cloudflare) is an optional, separate memory layer. It is useful for durable preferences, decisions, people, and project context that should be recalled across conversations. Nudge remains the source of truth for exact task state; Second Brain is never required for tasks or reminders.
-
-Setup:
-
-1. Deploy your own Second Brain instance from its repository.
-2. Copy its base URL and API token.
-3. Enable Second Brain in `npm run setup:cloudflare`, or configure `SECOND_BRAIN_URL` and the `SECOND_BRAIN_TOKEN` secret manually.
-
-Without Second Brain, Nudge hides Memories and skips recall without delaying task operations. Nudge never sends the token to the browser.
-
-You can enable either integration independently, or use both together.
+Memories is embedded in Nudge and based on the core engine from [Second Brain Cloudflare](https://github.com/rahilp/second-brain-cloudflare). It uses the separately bound `nudge-memories` D1 database, `nudge-memories-config` KV namespace, and `nudge-memories-vectors` index. No external Second Brain URL or token is required.
 
 ### Email — inbox and MCP
 
@@ -168,7 +153,7 @@ The permanent MCP endpoint is:
 https://<your-nudge-host>/email/mcp
 ```
 
-The Access application covering `/*` also enables Managed OAuth with 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow. Register this Microsoft Entra redirect URI:
+The shared MCP Access application covers `/email/mcp*` and `/memories/mcp*`. It enables Managed OAuth with 15-minute access tokens, 24-hour grant sessions, dynamic client registration, and localhost/loopback disabled. In ChatGPT or Claude, add the URL as a remote MCP server and complete the Cloudflare email OTP flow.
 
 For an existing Access application configured manually, add these **Managed OAuth → Allowed redirect URIs** before connecting an MCP client:
 
@@ -190,7 +175,7 @@ Nudge is intentionally single-user and private by default.
 - All data APIs require authentication.
 - Browser mutations require same-origin requests.
 - Cloudflare Access validates the issuer, audience, expiry, and owner email on every request; browser access uses email OTP.
-- The main Nudge and `/email/mcp*` applications have separate audiences and 24-hour sessions.
+- The browser application uses `NUDGE_ACCESS_AUD`; both MCP paths share the isolated `MCP_ACCESS_AUD`.
 - Managed OAuth uses short-lived 15-minute MCP access tokens and 24-hour grant sessions.
 - Voice endpoints are rate-limited.
 - Service-worker caches contain application assets only, never authenticated API responses.

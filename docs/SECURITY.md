@@ -2,7 +2,7 @@
 
 Nudge is single-user, not a multi-tenant service. Cloudflare Access email OTP is the browser authentication layer. Keep Access audiences, VAPID, encryption, OAuth, and action-signing secrets in Cloudflare Secrets, rotate any secret that has been exposed, keep `.dev.vars` private, and never log subscription JSON, memory content, task text, or credentials.
 
-The Worker verifies the Cloudflare Access issuer, JWKS signature, audience, expiry, and configured owner email on every request. The main app, Email MCP, and Memories MCP use separate audiences. Browser mutations require a same-origin request. Managed OAuth MCP tokens are short-lived and refreshed by the MCP client under the Access policy.
+The Worker verifies the Cloudflare Access issuer, JWKS signature, audience, expiry, and configured owner email on every request. Browser requests use `NUDGE_ACCESS_AUD`; Email and Memories MCP share the isolated `MCP_ACCESS_AUD`. Browser mutations require a same-origin request. Managed OAuth MCP tokens are short-lived and refreshed by the MCP client under the Access policy.
 
 Memories is embedded and uses Workers AI without a user API key. Gemini remains optional for live voice. Routine tasks, completed tasks, raw audio, transcripts, assistant output, email bodies, and credentials are not automatically stored as memories.
 

@@ -11,8 +11,6 @@ export interface Env {
   MEMORY_MCP_OBJECT?: DurableObjectNamespace;
   MEMORY_VECTORIZE_GRACE_MS?: string;
   VOICE_RATE_LIMITER?: RateLimiter;
-  SECOND_BRAIN_URL?: string;
-  SECOND_BRAIN_TOKEN?: string;
   GEMINI_API_KEY?: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
@@ -21,12 +19,12 @@ export interface Env {
   ACCESS_LOCAL_DEV?: string;
   TEAM_DOMAIN?: string;
   NUDGE_ACCESS_AUD?: string;
-  EMAIL_MCP_ACCESS_AUD?: string;
-  MEMORIES_MCP_ACCESS_AUD?: string;
-  NUDGE_OWNER_EMAIL?: string;
+  MCP_ACCESS_AUD?: string;
   EMAIL_KV?: KVNamespace;
   MCP_OBJECT?: DurableObjectNamespace;
+  NUDGE_ENCRYPTION_KEY?: string;
   CREDENTIAL_ENCRYPTION_KEY?: string;
+  NUDGE_OWNER_EMAIL?: string;
   OUTLOOK_CLIENT_ID?: string;
   OUTLOOK_CLIENT_SECRET?: string;
   OUTLOOK_TENANT?: string;

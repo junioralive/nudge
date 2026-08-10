@@ -6,7 +6,6 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "keep_vars": true,
   "workers_dev": true,
   "preview_urls": true,
   "routes": [
@@ -16,9 +15,6 @@
     }
   ],
   "vars": {
-    "APP_TIMEZONE": "Asia/Kolkata",
-    "NUDGE_PROFILE_NAME": "Junior",
-    "SECOND_BRAIN_URL": "https://memory.junioralive.in",
     "VAPID_SUBJECT": "https://nudge.junioralive.in"
   },
   "assets": {
@@ -48,7 +44,7 @@
   "kv_namespaces": [
     {
       "binding": "EMAIL_KV",
-      "id": "7f439d33892c464daf338365d907021d"
+      "id": "4d55b584f60d46989822d9ae9eaa4470"
     },
     {
       "binding": "MEMORY_CONFIG_KV",

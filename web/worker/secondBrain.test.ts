@@ -17,7 +17,7 @@ describe("embedded Memories adapter", () => {
   });
 
   it("fails safely instead of falling back to the external service", async () => {
-    await expect(recallMemories({ SECOND_BRAIN_URL: "https://memory.example", SECOND_BRAIN_TOKEN: "legacy" } as Env, { query: "x" }))
+    await expect(recallMemories({} as Env, { query: "x" }))
       .rejects.toMatchObject({ status: 503, message: "Memories is not configured" });
   });
 });

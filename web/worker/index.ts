@@ -58,6 +58,8 @@ import { memoriesMcpHandler, MemoriesMCP } from "./memoriesMcp";
 import { runTool, toolDeclarations } from "./tools";
 import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
+import { sealJson } from "./email-core/crypto";
+import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./integrationSecrets";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -129,19 +131,24 @@ app.get("/api/health", async (c) => {
     database = false;
   }
   if (memoriesConfigured(c.env)) memory = (await memoriesHealth(c.env)).healthy;
+  const gemini = await loadIntegrationSecret(c.env, "gemini");
   const ok = missing.length === 0 && database;
-  return c.json({ ok, database, memory, memoryConfigured: memoriesConfigured(c.env), geminiConfigured: Boolean(c.env.GEMINI_API_KEY), missing }, ok ? 200 : 503);
+  return c.json({ ok, database, memory, memoryConfigured: memoriesConfigured(c.env), geminiConfigured: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY), missing }, ok ? 200 : 503);
 });
 
-app.get("/api/capabilities", (c) => c.json({
-  gemini: Boolean(c.env.GEMINI_API_KEY),
+app.get("/api/capabilities", async (c) => {
+  const gemini = await loadIntegrationSecret(c.env, "gemini");
+  const microsoft = await loadIntegrationSecret(c.env, "microsoft");
+  return c.json({
+  gemini: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY),
   secondBrain: memoriesConfigured(c.env),
   memories: memoriesConfigured(c.env),
-  memoriesMcp: Boolean(c.env.MEMORIES_MCP_ACCESS_AUD && c.env.MEMORY_MCP_OBJECT),
+  memoriesMcp: Boolean((c.env.MCP_ACCESS_AUD || c.env.NUDGE_ACCESS_AUD) && c.env.MEMORY_MCP_OBJECT),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
   email: emailConfigured(c.env),
-  outlook: outlookConfigured(c.env),
-}));
+  outlook: outlookConfigured(c.env) || Boolean(microsoft?.clientId && microsoft?.clientSecret),
+  });
+});
 
 function emailErrorResponse(c: any, error: unknown) {
   const status = error instanceof EmailMcpError ? error.status : 502;
@@ -461,18 +468,71 @@ app.delete("/api/tasks/:id", async (c) => {
 
 app.get("/api/bootstrap", async (c) => {
   const [settings, workspaces] = await Promise.all([
-    c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string }>(),
+    c.env.DB.prepare("SELECT key, value, onboarding_completed_at FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string; onboarding_completed_at?: string | null }>(),
     c.env.DB.prepare("SELECT name, color FROM workspaces ORDER BY sort_order, created_at").all<{ name: string; color: string }>(),
   ]);
   const profile = Object.fromEntries((settings.results || []).map((row) => [row.key, row.value]));
+  const onboardingCompleted = Boolean((settings.results || []).find((row) => row.key === "name")?.onboarding_completed_at);
   return c.json({
     initialized: Boolean(profile.name),
+    onboarding_required: !onboardingCompleted,
+    onboarding_completed_at: (settings.results || []).find((row) => row.key === "name")?.onboarding_completed_at || null,
     name: profile.name || "Junior",
     timezone: profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata",
     assistant_gender: profile.assistant_gender === "he" ? "he" : "she",
     assistant_voice: ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr",
     workspaces: (workspaces.results || []).map((row) => row.name),
     workspace_colors: Object.fromEntries((workspaces.results || []).map((row) => [row.name, row.color])),
+  });
+});
+
+app.post("/api/onboarding", async (c) => {
+  const body = await jsonBody<{ name?: string; timezone?: string; assistant_gender?: string; assistant_voice?: string }>(c);
+  const name = cleanText(body.name, 80);
+  const timezone = cleanText(body.timezone, 80);
+  if (!name || !timezone || !["he", "she"].includes(body.assistant_gender || "") || !ASSISTANT_VOICES.has(body.assistant_voice || "")) {
+    return c.json({ error: "name, timezone, gender, and a supported voice are required" }, 400);
+  }
+  const now = new Date().toISOString();
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT INTO settings (key, value, updated_at, onboarding_completed_at) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, onboarding_completed_at = excluded.onboarding_completed_at").bind("name", name, now, now),
+    c.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind("timezone", timezone, now),
+    c.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind("assistant_gender", body.assistant_gender, now),
+    c.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind("assistant_voice", body.assistant_voice, now),
+  ]);
+  return c.json({ ok: true, onboarding_required: false });
+});
+
+app.post("/api/onboarding/reset", async (c) => {
+  await c.env.DB.prepare("UPDATE settings SET onboarding_completed_at = NULL WHERE key = 'name'").run();
+  return c.json({ onboarding_required: true });
+});
+
+app.post("/api/integrations/:provider", async (c) => {
+  const provider = cleanText(c.req.param("provider"), 40).toLowerCase();
+  if (!["gemini", "microsoft"].includes(provider)) return c.json({ error: "unsupported integration" }, 400);
+  const key = integrationEncryptionKey(c.env);
+  if (!key) return c.json({ error: "encryption is not configured" }, 503);
+  const body = await jsonBody<Record<string, unknown>>(c);
+  const payload = Object.fromEntries(Object.entries(body).filter(([name, value]) => typeof value === "string" && value.trim()).map(([name, value]) => [name, String(value).trim()]));
+  if (!Object.keys(payload).length) return c.json({ error: "at least one value is required" }, 400);
+  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(provider, await sealJson(payload, key)).run();
+  return c.json({ configured: true });
+});
+
+app.delete("/api/integrations/:provider", async (c) => {
+  await c.env.DB.prepare("DELETE FROM integration_secrets WHERE provider = ?").bind(cleanText(c.req.param("provider"), 40).toLowerCase()).run();
+  return c.json({ configured: false });
+});
+
+app.get("/api/integrations", async (c) => {
+  const [gemini, microsoft] = await Promise.all([
+    loadIntegrationSecret(c.env, "gemini"),
+    loadIntegrationSecret(c.env, "microsoft"),
+  ]);
+  return c.json({
+    gemini: { configured: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY) },
+    microsoft: { configured: Boolean((microsoft?.clientId || c.env.OUTLOOK_CLIENT_ID) && (microsoft?.clientSecret || c.env.OUTLOOK_CLIENT_SECRET)) },
   });
 });
 
@@ -722,7 +782,9 @@ Email is private operational data. Use email tools only when the user explicitly
 }
 
 app.post("/api/voice-token", async (c) => {
-  if (!c.env.GEMINI_API_KEY) return c.json({ error: "Gemini voice is not configured" }, 503);
+  const storedGemini = await loadIntegrationSecret(c.env, "gemini");
+  const geminiApiKey = storedGemini?.apiKey || c.env.GEMINI_API_KEY;
+  if (!geminiApiKey) return c.json({ error: "Gemini voice is not configured" }, 503);
   if (c.env.VOICE_RATE_LIMITER && !(await c.env.VOICE_RATE_LIMITER.limit({ key: clientAddress(c) })).success) {
     return c.json({ error: "too many voice requests" }, 429);
   }
@@ -735,7 +797,7 @@ app.post("/api/voice-token", async (c) => {
   const assistantGender = profile.assistant_gender === "he" ? "he" : "she";
   const assistantVoice = ASSISTANT_VOICES.has(profile.assistant_voice) ? profile.assistant_voice : "Zephyr";
   const timezone = profile.timezone || c.env.APP_TIMEZONE || "Asia/Kolkata";
-  const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
   const expireTime = new Date(Date.now() + 30 * 60 * 1_000).toISOString();
 
   try {
@@ -802,18 +864,19 @@ export { MyMCP, MemoriesMCP };
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const resolvedEnv = await runtimeEnv(env);
     const pathname = new URL(request.url).pathname;
     if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
-      if (!await verifyAccessRequest(request, env)) return new Response("Unauthorized", { status: 401 });
-      if (!emailConfigured(env)) return new Response("Email integration is not configured", { status: 503 });
-      return emailMcpHandler.fetch(request, env as any, ctx);
+      if (!await verifyAccessRequest(request, resolvedEnv)) return new Response("Unauthorized", { status: 401 });
+      if (!emailConfigured(resolvedEnv)) return new Response("Email integration is not configured", { status: 503 });
+      return emailMcpHandler.fetch(request, resolvedEnv as any, ctx);
     }
     if (pathname === "/memories/mcp" || pathname.startsWith("/memories/mcp/")) {
-      if (!await verifyAccessRequest(request, env)) return new Response("Unauthorized", { status: 401 });
-      if (!memoriesConfigured(env)) return new Response("Memories is not configured", { status: 503 });
-      return memoriesMcpHandler.fetch(request, env as any, ctx);
+      if (!await verifyAccessRequest(request, resolvedEnv)) return new Response("Unauthorized", { status: 401 });
+      if (!memoriesConfigured(resolvedEnv)) return new Response("Memories is not configured", { status: 503 });
+      return memoriesMcpHandler.fetch(request, resolvedEnv as any, ctx);
     }
-    return app.fetch(request, env, ctx);
+    return app.fetch(request, resolvedEnv, ctx);
   },
   scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (controller.cron === "0 1 * * *" && memoriesConfigured(env)) {

@@ -88,6 +88,18 @@ export function updateProfile(values) {
   return apiFetch("/api/profile", { method: "PUT", body: JSON.stringify(values) });
 }
 
+export function completeOnboarding(values) {
+  return apiFetch("/api/onboarding", { method: "POST", body: JSON.stringify(values) });
+}
+export function resetOnboarding() { return apiFetch("/api/onboarding/reset", { method: "POST" }); }
+export function fetchIntegrations() { return apiFetch("/api/integrations"); }
+export function saveIntegration(provider, values) {
+  return apiFetch(`/api/integrations/${encodeURIComponent(provider)}`, { method: "POST", body: JSON.stringify(values) });
+}
+export function removeIntegration(provider) {
+  return apiFetch(`/api/integrations/${encodeURIComponent(provider)}`, { method: "DELETE" });
+}
+
 export function createWorkspace(name) {
   return apiFetch("/api/workspaces", { method: "POST", body: JSON.stringify({ name }) });
 }

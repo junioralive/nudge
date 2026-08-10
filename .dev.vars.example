@@ -3,20 +3,16 @@ ACCESS_LOCAL_DEV=true
 NUDGE_OWNER_EMAIL=owner@example.com
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 NUDGE_ACCESS_AUD=local-development
-EMAIL_MCP_ACCESS_AUD=local-development
+MCP_ACCESS_AUD=local-development
 
 # The setup wizard generates these for a new deployment.
-CREDENTIAL_ENCRYPTION_KEY=
+NUDGE_ENCRYPTION_KEY=
 NUDGE_ACTION_SIGNING_SECRET=
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 
 # Optional integrations.
 GEMINI_API_KEY=
-SECOND_BRAIN_URL=
-SECOND_BRAIN_TOKEN=
 OUTLOOK_CLIENT_ID=
 OUTLOOK_CLIENT_SECRET=
 OUTLOOK_TENANT=consumers
-APP_TIMEZONE=Asia/Kolkata
-NUDGE_PROFILE_NAME=Junior

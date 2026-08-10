@@ -10,7 +10,7 @@ The Email MCP tool names, schemas, annotations, and result formats remain compat
 
 ## Authentication
 
-The Nudge hostname is protected by one Cloudflare Access self-hosted application covering `/*`. The same application provides the owner-email Allow policy, email OTP, and Managed OAuth for `/email/mcp`. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
+The Nudge hostname is protected by a browser Access application covering `/*`. A second shared MCP application protects `/email/mcp*` and `/memories/mcp*` with one `MCP_ACCESS_AUD`. Both use the same owner-email policy and OTP identity. The setup wizard configures 24-hour Access sessions, 15-minute MCP access tokens, 24-hour OAuth grant sessions, dynamic client registration, and disabled localhost/loopback redirects.
 
 The Managed OAuth redirect allowlist must include `https://chatgpt.com/*` for ChatGPT and `https://claude.ai/*` for Claude. Cloudflare rejects dynamic client registration with `invalid_client_metadata` when the requesting client's callback is not allowed.
 
@@ -21,7 +21,7 @@ In ChatGPT or Claude, add `https://<your-nudge-host>/email/mcp` as a remote MCP 
 The setup wizard provisions or reuses:
 
 - `EMAIL_KV`: encrypted mailbox accounts and OAuth refresh tokens.
-- `CREDENTIAL_ENCRYPTION_KEY`: a base64 32-byte AES-GCM key. Existing deployments must reuse their current value; it must never be rotated automatically.
+- `NUDGE_ENCRYPTION_KEY`: a generated base64 32-byte AES-GCM key. Existing deployments temporarily accept `CREDENTIAL_ENCRYPTION_KEY` while encrypted Email records are migrated.
 - `MCP_OBJECT`: the Durable Object that owns Streamable HTTP MCP sessions.
 - `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, and `OUTLOOK_TENANT`: optional Microsoft Entra OAuth configuration.
 - `NUDGE_ACTION_SIGNING_SECRET`: short-lived, one-use UI approval tokens.

@@ -25,7 +25,7 @@ Gemini is not used by the Memories engine. It remains optional and powers only t
 
 The remote Streamable HTTP endpoint is `https://<your-nudge-host>/memories/mcp`.
 
-Create a path-specific Cloudflare Access application for `/memories/mcp*`, enable Managed OAuth, allow only the owner email, use a 15-minute access token and 24-hour grant, and copy its AUD to `MEMORIES_MCP_ACCESS_AUD`. Do not reuse the main Nudge or Email MCP audience.
+Use the shared MCP Cloudflare Access application with public destinations `/email/mcp*` and `/memories/mcp*`. Enable Managed OAuth, allow only the owner email, use a 15-minute access token and 24-hour grant, and copy its AUD to `MCP_ACCESS_AUD`. Do not reuse the browser application's `NUDGE_ACCESS_AUD` after migration.
 
 Tools: `remember`, `append`, `update`, `set_status`, `recall`, `list_recent`, `get`, `forget`, `link`, `unlink`, and `connections`.
 

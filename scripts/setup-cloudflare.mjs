@@ -9,6 +9,12 @@ const projectRoot = path.resolve(import.meta.dirname, "..");
 const wranglerPath = path.join(projectRoot, "wrangler.jsonc");
 const rl = createInterface({ input, output });
 let managedOauthRedirectUris = [];
+const cli = Object.fromEntries(process.argv.slice(2).reduce((args, value, index, all) => {
+  if (!value.startsWith("--")) return args;
+  const key = value.slice(2);
+  args[key] = all[index + 1] && !all[index + 1].startsWith("--") ? all[index + 1] : true;
+  return args;
+}, {}));
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -25,6 +31,21 @@ function capture(command, args) {
   const result = spawnSync(command, args, { cwd: projectRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error(result.stderr || `${command} failed`);
   return result.stdout || "";
+}
+
+function discoverAccountId() {
+  const output = capture("npx", ["wrangler", "whoami", "--config", wranglerPath]);
+  const match = output.match(/[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f-]{27}/i);
+  if (!match) throw new Error("Could not discover the Cloudflare account ID. Run wrangler login first.");
+  return match[0];
+}
+
+async function discoverTeamDomain(token, accountId) {
+  const organizations = await accessApi(token, accountId, "GET", "/access/organizations");
+  const item = Array.isArray(organizations) ? organizations[0] : organizations;
+  const domain = item?.auth_domain || item?.team_domain || item?.domain || item?.name;
+  if (!domain) throw new Error("Could not discover the Zero Trust team domain. Grant Access organization read permission to the temporary token.");
+  return String(domain).startsWith("http") ? String(domain).replace(/\/$/, "") : `https://${String(domain).replace(/\/$/, "")}`;
 }
 
 async function ask(label, fallback = "") {
@@ -104,12 +125,16 @@ async function ensureDatabase(workerName, config) {
 }
 
 async function ensureEmailKv(workerName, config, requestedId) {
-  if (requestedId) {
-    config.kv_namespaces = [{ binding: "EMAIL_KV", id: requestedId }, ...(config.kv_namespaces || []).filter((item) => item.binding !== "EMAIL_KV")];
-    return requestedId;
-  }
+  const boundId = (config.kv_namespaces || []).find((item) => item.binding === "EMAIL_KV")?.id;
   const listed = unwrap(jsonFromOutput(capture("npx", ["wrangler", "kv", "namespace", "list", "--config", wranglerPath])));
-  const existing = Array.isArray(listed) ? listed.find((item) => item.title === `${workerName}-email` || item.title === "EMAIL_KV") : null;
+  const bound = Array.isArray(listed) ? listed.find((item) => item.id === boundId || item.namespace_id === boundId) : null;
+  const reusableId = requestedId || (bound && bound.title !== `${workerName}-email-v2` ? boundId : undefined);
+  if (reusableId) {
+    config.kv_namespaces = [{ binding: "EMAIL_KV", id: reusableId }, ...(config.kv_namespaces || []).filter((item) => item.binding !== "EMAIL_KV")];
+    return reusableId;
+  }
+  const acceptedTitles = new Set([`${workerName}-email`, "EMAIL_KV"]);
+  const existing = Array.isArray(listed) ? listed.find((item) => acceptedTitles.has(item.title)) : null;
   let namespace = existing;
   if (!namespace) {
     console.log("Creating an Email KV namespace…");
@@ -202,24 +227,26 @@ function appAudience(app) {
   return String(value || app?.uid || app?.id || "");
 }
 
-async function ensureAccessApplication(token, accountId, hostname, domain, type, ownerEmail, oauth = false, label = "Nudge") {
+async function ensureAccessApplication(token, accountId, hostname, domains, type, ownerEmail, oauth = false, label = "Nudge") {
   const apps = await accessApi(token, accountId, "GET", "/access/apps");
   const otpProviderId = await oneTimePinProvider(token, accountId);
+  const destinationUris = Array.isArray(domains) ? domains : [domains];
+  const domain = hostname;
+  const destinations = destinationUris.map((uri) => ({ type: "public", uri }));
   const accessDefaults = {
     session_duration: "24h",
     allow_authenticate_via_warp: false,
     ...(otpProviderId ? { allowed_idps: [otpProviderId], auto_redirect_to_identity: true } : { auto_redirect_to_identity: false }),
   };
-  let app = (Array.isArray(apps) ? apps : []).find((candidate) => candidate.domain === domain);
+  let app = (Array.isArray(apps) ? apps : []).find((candidate) =>
+    candidate.name === label ||
+    candidate.destinations?.some((destination) => destination.type === "public" && destination.uri === domain && candidate.name !== "Nudge")
+  );
+  const applicationBody = { name: label, domain, destinations, type, ...accessDefaults };
   if (!app) {
-    app = await accessApi(token, accountId, "POST", "/access/apps", {
-      name: label,
-      domain,
-      type,
-      ...accessDefaults,
-    });
+    app = await accessApi(token, accountId, "POST", "/access/apps", applicationBody);
   } else {
-    app = await accessApi(token, accountId, "PUT", `/access/apps/${app.id}`, { domain, type, ...accessDefaults });
+    app = await accessApi(token, accountId, "PUT", `/access/apps/${app.id}`, applicationBody);
   }
 
   const policies = await accessApi(token, accountId, "GET", `/access/apps/${app.id}/policies`);
@@ -231,7 +258,9 @@ async function ensureAccessApplication(token, accountId, hostname, domain, type,
   if (oauth) {
     await accessApi(token, accountId, "PUT", `/access/apps/${app.id}`, {
       ...accessDefaults,
+      name: label,
       domain,
+      destinations,
       type,
       oauth_configuration: {
         enabled: true,
@@ -259,60 +288,38 @@ async function main() {
   run("npx", ["wrangler", "whoami", "--config", wranglerPath]);
   const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
   const secrets = existingSecretNames();
-  const workerName = safeWorkerName(await ask("Worker name", config.name || "nudge"));
+  const workerName = safeWorkerName(cli["worker-name"] || config.name || "nudge");
   const ownerEmail = (await askRequired("Owner email for Cloudflare Access OTP")).toLowerCase();
-  const teamDomain = (await askRequired("Cloudflare Access team domain (https://...)")).replace(/\/$/, "");
-  const accountId = await askRequired("Cloudflare account ID");
-  const apiToken = await askRequired("Temporary API token (Access: Apps and Policies Write; used only in memory)");
-  const customDomain = (await ask("Custom domain (optional; leave blank for workers.dev)")).replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const customDomain = String(cli.domain || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const hostname = customDomain || `${workerName}.workers.dev`;
-  const profileName = await ask("Display name", "Junior");
-  const timezone = await ask("Timezone", "Asia/Kolkata");
-  const assistantGender = (await ask("Assistant voice (she or he)", "she")).toLowerCase() === "he" ? "he" : "she";
-  const workspaces = (await ask("Workspaces (comma-separated)", "Personal, Work, Startup")).split(",").map((value) => value.trim()).filter(Boolean).slice(0, 50);
-  const enableGemini = await confirm("Enable Gemini voice assistant?", false);
-  const geminiKey = enableGemini ? await askRequired("Gemini API key") : "";
-  const enableOutlook = await confirm("Enable Microsoft Outlook account connection?", true);
-  const outlookClientId = enableOutlook ? await askRequired("Microsoft Entra client ID") : "";
-  const outlookClientSecret = enableOutlook ? await askRequired("Microsoft Entra client secret") : "";
-  const outlookTenant = enableOutlook ? await ask("Microsoft tenant", "consumers") : "";
-  const existingKvId = await ask("Existing Email KV namespace ID (leave blank to create one)");
-  managedOauthRedirectUris = (await askRequired("MCP client redirect URIs (comma-separated; copy the exact HTTPS callbacks shown by ChatGPT/Claude)"))
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.startsWith("https://"));
-  if (!managedOauthRedirectUris.length) throw new Error("At least one HTTPS MCP client redirect URI is required.");
+  const finalRoutes = customDomain ? [{ pattern: hostname, custom_domain: true }] : [];
+  const apiToken = await askRequired("Temporary Cloudflare API token (used only in memory)");
+  const accountId = discoverAccountId();
+  const redirectValues = String(cli["redirect-uri"] || "https://chatgpt.com/*,https://chat.openai.com/*,https://claude.ai/*");
+  managedOauthRedirectUris = redirectValues.split(",").map((value) => value.trim()).filter((value) => value.startsWith("https://"));
 
   config.name = workerName;
   config.workers_dev = true;
-  config.routes = customDomain ? [{ pattern: hostname, custom_domain: true }] : [];
+  // The bootstrap deployment stays on workers.dev and preserves current
+  // dashboard variables. The custom route is attached only after Access is
+  // ready, so an API error cannot lock an existing installation out.
+  config.keep_vars = true;
+  config.routes = [];
   config.vars = {
     ...(config.vars || {}),
-    APP_TIMEZONE: timezone,
     VAPID_SUBJECT: `https://${hostname}`,
-    NUDGE_ASSISTANT_GENDER: assistantGender,
     GEMINI_LIVE_MODEL: config.vars?.GEMINI_LIVE_MODEL || "gemini-3.1-flash-live-preview",
-    TEAM_DOMAIN: teamDomain,
-    NUDGE_ACCESS_AUD: "pending-access-setup",
+    TEAM_DOMAIN: config.vars?.TEAM_DOMAIN || "https://pending.cloudflareaccess.com",
+    NUDGE_ACCESS_AUD: config.vars?.NUDGE_ACCESS_AUD || "pending-access-setup",
     NUDGE_OWNER_EMAIL: ownerEmail,
   };
-  delete config.vars.SECOND_BRAIN_URL;
-  if (!enableOutlook) delete config.vars.OUTLOOK_TENANT;
+  for (const name of ["APP_TIMEZONE", "NUDGE_PROFILE_NAME", "NUDGE_ASSISTANT_GENDER", "SECOND_BRAIN_URL", "EMAIL_MCP_ACCESS_AUD", "MEMORIES_MCP_ACCESS_AUD"]) delete config.vars[name];
   await ensureDatabase(workerName, config);
-  const kvId = await ensureEmailKv(workerName, config, existingKvId);
+  const kvId = await ensureEmailKv(workerName, config, undefined);
   const memories = await ensureMemories(workerName, config);
   updateWrangler(config);
 
-  console.log("Configuring Cloudflare Access applications…");
-  const nudgeAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/*`, "self_hosted", ownerEmail, false, "Nudge");
-  const emailMcpAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/email/mcp*`, "self_hosted", ownerEmail, true, "Nudge Email MCP");
-  const memoriesMcpAud = await ensureAccessApplication(apiToken, accountId, hostname, `${hostname}/memories/mcp*`, "self_hosted", ownerEmail, true, "Nudge Memories MCP");
-  config.vars.NUDGE_ACCESS_AUD = nudgeAud;
-  config.vars.EMAIL_MCP_ACCESS_AUD = emailMcpAud;
-  config.vars.MEMORIES_MCP_ACCESS_AUD = memoriesMcpAud;
-  updateWrangler(config);
-
-  console.log("Installing generated and optional secrets…");
+  console.log("Generating deployment secrets…");
   const hasVapidPublic = secrets.has("VAPID_PUBLIC_KEY");
   const hasVapidPrivate = secrets.has("VAPID_PRIVATE_KEY");
   if (hasVapidPublic !== hasVapidPrivate) throw new Error("Only one VAPID key exists. Restore the matching pair before deploying; setup will not rotate it automatically.");
@@ -322,32 +329,46 @@ async function main() {
     installSecret("VAPID_PRIVATE_KEY", vapid.privateKey);
   }
   if (!secrets.has("NUDGE_ACTION_SIGNING_SECRET")) installSecret("NUDGE_ACTION_SIGNING_SECRET", randomBytes(48).toString("base64url"));
-  if (!secrets.has("CREDENTIAL_ENCRYPTION_KEY")) {
-    if (existingKvId) installSecret("CREDENTIAL_ENCRYPTION_KEY", await askRequired("Existing CREDENTIAL_ENCRYPTION_KEY (required; it will not be rotated)"));
-    else installSecret("CREDENTIAL_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
-  }
-  if (enableGemini) installSecret("GEMINI_API_KEY", geminiKey);
-  if (enableOutlook) {
-    installSecret("OUTLOOK_CLIENT_ID", outlookClientId);
-    installSecret("OUTLOOK_CLIENT_SECRET", outlookClientSecret);
-    config.vars.OUTLOOK_TENANT = outlookTenant;
-    updateWrangler(config);
-  }
+  if (!secrets.has("NUDGE_ENCRYPTION_KEY") && !secrets.has("CREDENTIAL_ENCRYPTION_KEY")) installSecret("NUDGE_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
 
+  console.log("Deploying once to obtain the Worker hostname…");
+  run("npm", ["run", "deploy"]);
+  const teamDomain = config.vars.TEAM_DOMAIN && !config.vars.TEAM_DOMAIN.includes("pending")
+    ? config.vars.TEAM_DOMAIN
+    : await discoverTeamDomain(apiToken, accountId);
+  config.vars.TEAM_DOMAIN = teamDomain;
+  updateWrangler(config);
+
+  console.log("Configuring Cloudflare Access applications…");
+  const nudgeAud = await ensureAccessApplication(apiToken, accountId, hostname, [`${hostname}/*`], "self_hosted", ownerEmail, false, "Nudge");
+  const mcpAud = await ensureAccessApplication(
+    apiToken,
+    accountId,
+    hostname,
+    [`${hostname}/email/mcp*`, `${hostname}/memories/mcp*`],
+    "self_hosted",
+    ownerEmail,
+    true,
+    "Nudge MCP",
+  );
+  config.vars.NUDGE_ACCESS_AUD = nudgeAud;
+  config.vars.MCP_ACCESS_AUD = mcpAud;
+  config.routes = finalRoutes;
+  delete config.keep_vars;
+  delete config.vars.EMAIL_MCP_ACCESS_AUD;
+  delete config.vars.MEMORIES_MCP_ACCESS_AUD;
+  updateWrangler(config);
+
+  console.log("Installing generated and optional secrets…");
   console.log("Applying D1 migrations…");
   run("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", wranglerPath]);
   run("npx", ["wrangler", "d1", "execute", "MEMORY_DB", "--remote", "--file", "web/memory-migrations/0001_memories.sql", "--config", wranglerPath]);
-  const seed = [
-    `INSERT INTO settings (key, value) VALUES ('name', ${sqlString(profileName)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    `INSERT INTO settings (key, value) VALUES ('timezone', ${sqlString(timezone)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    ...workspaces.map((name, index) => `INSERT OR IGNORE INTO workspaces (name, sort_order) VALUES (${sqlString(name)}, ${index})`),
-  ].join("; ");
+  const seed = ["INSERT OR IGNORE INTO workspaces (name, sort_order) VALUES ('Personal', 0), ('Work', 1), ('Startup', 2)"].join("; ");
   run("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--command", seed, "--config", wranglerPath]);
   run("npm", ["run", "deploy"]);
   console.log(`\nNudge is deployed: https://${hostname}`);
   console.log(`Email MCP endpoint: https://${hostname}/email/mcp`);
   console.log(`Memories MCP endpoint: https://${hostname}/memories/mcp`);
-  if (enableOutlook) console.log(`Microsoft redirect URI: https://${hostname}/api/email/oauth/outlook/callback`);
   console.log(`Email KV namespace: ${kvId}`);
   console.log(`Memories D1: ${memories.databaseName}`);
   console.log(`Memories Vectorize: ${memories.indexName}`);
