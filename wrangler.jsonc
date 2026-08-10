@@ -35,6 +35,14 @@
       "database_id": "76b8d867-9de7-4da0-9c01-a6d04a1793b4"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "EMAIL_KV"
+    },
+    {
+      "binding": "MEMORY_CONFIG_KV"
+    }
+  ],
   "vectorize": [
     {
       "binding": "MEMORY_VECTORIZE",

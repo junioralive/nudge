@@ -103,7 +103,9 @@ Build command:  npm run cloudflare:build
 Deploy command: npm run cloudflare:deploy
 ```
 
-The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. Keep the build and deploy commands above so Vite generates the final Worker bundle, validates or provisions every named resource, generates missing deployment secrets, deploys it, and applies both task and Memories migrations.
+The repository includes an account-safe root `wrangler.jsonc` so Cloudflare can detect the project without workspace auto-detection. The Deploy form shows two distinct KV bindings: use `nudge-email` for the first (`EMAIL_KV`) and `nudge-memories-config` for the second (`MEMORY_CONFIG_KV`). Keep the build and deploy commands above so Vite generates the final Worker bundle, validates or provisions every named resource, generates missing deployment secrets, deploys it, and applies both task and Memories migrations.
+
+Cloudflare treats values sourced from `.dev.vars.example` as encrypted Worker-secret inputs. Nudge intentionally has no root `.dev.vars.example`: encryption, action-signing, and VAPID secrets are generated during deployment, while browser login is Cloudflare Access email OTP rather than an application password. Local-only examples remain under `web/.dev.vars.example` and never enter the Deploy form.
 
 ## Local development
 

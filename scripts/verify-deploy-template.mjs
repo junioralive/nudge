@@ -16,6 +16,7 @@ function bindings(items, key = "binding") {
 }
 
 const d1 = bindings(config.d1_databases);
+const kv = bindings(config.kv_namespaces);
 const vectorize = bindings(config.vectorize);
 const durableObjects = bindings(config.durable_objects?.bindings, "name");
 const workerFirst = new Set(config.assets?.run_worker_first || []);
@@ -24,7 +25,8 @@ requireValue(config.workers_dev === true, "workers.dev must remain enabled for f
 requireValue(!config.routes, "public template must not contain a personal custom domain route");
 requireValue(!JSON.stringify(config).includes("junioralive.in"), "public template contains a personal domain");
 requireValue(d1.has("DB") && d1.has("MEMORY_DB"), "DB and MEMORY_DB bindings are required");
-requireValue(!config.kv_namespaces?.length, "KV bindings must be provisioned by the deploy script to avoid duplicate Deploy-button names");
+requireValue(kv.has("EMAIL_KV") && kv.has("MEMORY_CONFIG_KV"), "EMAIL_KV and MEMORY_CONFIG_KV must be declared for Deploy-button provisioning");
+requireValue((config.kv_namespaces || []).every((item) => !item.id), "public KV bindings must not contain account-specific namespace IDs");
 requireValue(deployScript.includes('const REQUIRED_KV_BINDINGS = ["EMAIL_KV", "MEMORY_CONFIG_KV"]'), "deploy script must provision both KV bindings");
 requireValue(vectorize.has("MEMORY_VECTORIZE"), "MEMORY_VECTORIZE binding is required");
 requireValue(durableObjects.has("MCP_OBJECT") && durableObjects.has("MEMORY_MCP_OBJECT"), "both MCP Durable Objects are required");
