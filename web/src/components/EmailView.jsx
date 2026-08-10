@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Archive, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
@@ -363,7 +364,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
 
     {compose && <EmailDraftDialog initial={compose} onClose={() => setCompose(null)} onSent={() => loadInbox()} />}
 
-    {accountsOpen && <section className="email-dialog-layer" role="dialog" aria-modal="true" aria-labelledby="email-accounts-title" onMouseDown={(event) => event.target === event.currentTarget && closeAccountManager()}>
+    {accountsOpen && createPortal(<section className="email-dialog-layer" role="dialog" aria-modal="true" aria-labelledby="email-accounts-title" onMouseDown={(event) => event.target === event.currentTarget && closeAccountManager()}>
       <section className="email-account-dialog">
         <header className="floating-dialog-head email-account-head"><div>{accountView !== "list" && <button type="button" onClick={() => { setAccountView(accounts.length ? "list" : "providers"); setAccountStatus(""); }} aria-label="Go back"><ChevronLeft size={18} /></button>}<div><h2 id="email-accounts-title">{accountView === "providers" ? "Choose your email" : accountView === "form" ? editingAccountId ? "Edit account" : `Connect ${PROVIDERS[accountProvider]?.label || "email"}` : "Email accounts"}</h2><p>{accountView === "providers" ? "Select a provider to continue." : accountView === "form" ? "Your credentials are encrypted before they are stored." : "Connect and manage inboxes available to Nudge."}</p></div></div><button type="button" onClick={closeAccountManager} aria-label="Close account manager"><X size={18} /></button></header>
         <div className="email-account-body">
@@ -387,6 +388,6 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
           {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
         </div>
       </section>
-    </section>}
+    </section>, document.body)}
   </section>;
 }
