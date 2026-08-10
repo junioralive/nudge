@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowLeft, CheckCircle2, ChevronRight, Circle, Inbox, LoaderCircle, Mail, RefreshCw, Search, SquareCheckBig, Trash2, X } from "lucide-react";
+import { Archive, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
   addEmailAccount,
@@ -27,6 +27,14 @@ function senderName(value) {
   return String(value || "Unknown sender").replace(/\s*<[^>]+>\s*$/, "").replace(/^"|"$/g, "") || value;
 }
 
+const EMPTY_ACCOUNT = { name: "", email: "", imapHost: "", imapPort: "993", imapSecure: true, password: "", smtpHost: "", smtpPort: "465", smtpSecure: true };
+
+const PROVIDERS = {
+  gmail: { label: "Gmail", description: "Google account with an app password", name: "Gmail", imapHost: "imap.gmail.com", imapPort: "993", imapSecure: true, smtpHost: "smtp.gmail.com", smtpPort: "465", smtpSecure: true },
+  icloud: { label: "iCloud", description: "Apple Mail with an app-specific password", name: "iCloud", imapHost: "imap.mail.me.com", imapPort: "993", imapSecure: true, smtpHost: "smtp.mail.me.com", smtpPort: "587", smtpSecure: false },
+  custom: { label: "Custom", description: "Any IMAP and SMTP provider", name: "", imapHost: "", imapPort: "993", imapSecure: true, smtpHost: "", smtpPort: "465", smtpSecure: true },
+};
+
 export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated, outlookConfigured = false }) {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState("");
@@ -41,7 +49,9 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   const [taskDraft, setTaskDraft] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: "", email: "", imapHost: "", imapPort: "993", password: "", smtpHost: "", smtpPort: "465" });
+  const [accountView, setAccountView] = useState("list");
+  const [accountProvider, setAccountProvider] = useState("");
+  const [accountForm, setAccountForm] = useState(EMPTY_ACCOUNT);
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountStatus, setAccountStatus] = useState("");
   const [editingAccountId, setEditingAccountId] = useState("");
@@ -169,6 +179,34 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
     }
   }
 
+  function openAccountManager() {
+    setAccountsOpen(true);
+    setAccountView(accounts.length ? "list" : "providers");
+    setAccountProvider("");
+    setEditingAccountId("");
+    setAccountForm(EMPTY_ACCOUNT);
+    setAccountStatus("");
+  }
+
+  function closeAccountManager() {
+    setAccountsOpen(false);
+    setAccountStatus("");
+    setEditingAccountId("");
+  }
+
+  function chooseProvider(provider) {
+    if (provider === "outlook") {
+      connectOutlook();
+      return;
+    }
+    const preset = PROVIDERS[provider];
+    setAccountProvider(provider);
+    setEditingAccountId("");
+    setAccountForm({ ...EMPTY_ACCOUNT, ...preset });
+    setAccountStatus("");
+    setAccountView("form");
+  }
+
   function editAccount(account) {
     setEditingAccountId(account.id);
     setAccountForm({
@@ -176,10 +214,14 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
       email: account.email || "",
       imapHost: account.imapHost || "",
       imapPort: String(account.imapPort || 993),
+      imapSecure: account.imapSecure !== false,
       password: "",
       smtpHost: account.smtpHost || "",
       smtpPort: String(account.smtpPort || 465),
+      smtpSecure: account.smtpSecure !== false,
     });
+    setAccountProvider("custom");
+    setAccountView("form");
     setAccountStatus("");
   }
 
@@ -204,10 +246,11 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
       if (editingAccountId) await updateEmailAccount(editingAccountId, values);
       else await addEmailAccount(values);
       const connected = await loadAccounts();
-      setAccountForm({ name: "", email: "", imapHost: "", imapPort: "993", password: "", smtpHost: "", smtpPort: "465" });
+      setAccountForm(EMPTY_ACCOUNT);
       setAccountStatus(editingAccountId ? "Account updated." : "Account connected.");
       setEditingAccountId("");
       await loadInbox(accountId, connected);
+      setAccountView("list");
     } catch (requestError) {
       setAccountStatus(requestError.message);
     } finally {
@@ -249,7 +292,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
     <div className="email-overview">
       <div><Inbox size={18} /><span><strong>{summary.total}</strong><small>Inbox messages</small></span></div>
       <div><Circle size={18} /><span><strong>{unread}</strong><small>Unread in view</small></span></div>
-      <div className="email-account-card"><SquareCheckBig size={18} /><span><strong>{accounts.length}</strong><small>Connected accounts</small><button type="button" onClick={() => { setAccountsOpen(true); setAccountStatus(""); }}>Manage accounts</button></span></div>
+      <div className="email-account-card"><SquareCheckBig size={18} /><span><strong>{accounts.length}</strong><small>Connected accounts</small><button type="button" onClick={openAccountManager}>Manage accounts</button></span></div>
     </div>
 
     <div className="email-toolbar">
@@ -271,7 +314,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
           <span className="skeleton-circle" /><span className="skeleton-line sender" /><span className="skeleton-line subject" /><span className="skeleton-line date" />
         </div>)}
       </div>
-        : messages.length === 0 ? <div className="email-empty"><Inbox size={24} /><h3>{accounts.length ? "No messages found" : "Connect an account"}</h3><p>{accounts.length ? "Try another account or search." : "Add an IMAP account to bring your inbox into Nudge."}</p>{!accounts.length && <button type="button" onClick={() => { setAccountsOpen(true); setAccountStatus(""); }}>Manage accounts</button>}</div>
+        : messages.length === 0 ? <div className="email-empty"><Inbox size={24} /><h3>{accounts.length ? "No messages found" : "Connect an account"}</h3><p>{accounts.length ? "Try another account or search." : "Choose Gmail, iCloud, or your own mail provider."}</p>{!accounts.length && <button type="button" onClick={openAccountManager}>Connect email</button>}</div>
           : messages.map((item) => <button type="button" className={`email-row ${item.seen ? "seen" : "unread"}`} key={item.ref} onClick={() => openMessage(item)}>
             <span className="email-read-dot" />
             <span className="email-row-from">{senderName(item.from)}</span>
@@ -320,22 +363,27 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
 
     {compose && <EmailDraftDialog initial={compose} onClose={() => setCompose(null)} onSent={() => loadInbox()} />}
 
-    {accountsOpen && <section className="email-dialog-layer" role="dialog" aria-modal="true" aria-labelledby="email-accounts-title" onMouseDown={(event) => event.target === event.currentTarget && setAccountsOpen(false)}>
+    {accountsOpen && <section className="email-dialog-layer" role="dialog" aria-modal="true" aria-labelledby="email-accounts-title" onMouseDown={(event) => event.target === event.currentTarget && closeAccountManager()}>
       <section className="email-account-dialog">
-        <header className="floating-dialog-head"><div><SquareCheckBig size={18} /><h2 id="email-accounts-title">Email accounts</h2></div><button type="button" onClick={() => setAccountsOpen(false)} aria-label="Close account manager"><X size={18} /></button></header>
+        <header className="floating-dialog-head email-account-head"><div>{accountView !== "list" && <button type="button" onClick={() => { setAccountView(accounts.length ? "list" : "providers"); setAccountStatus(""); }} aria-label="Go back"><ChevronLeft size={18} /></button>}<div><h2 id="email-accounts-title">{accountView === "providers" ? "Choose your email" : accountView === "form" ? editingAccountId ? "Edit account" : `Connect ${PROVIDERS[accountProvider]?.label || "email"}` : "Email accounts"}</h2><p>{accountView === "providers" ? "Select a provider to continue." : accountView === "form" ? "Your credentials are encrypted before they are stored." : "Connect and manage inboxes available to Nudge."}</p></div></div><button type="button" onClick={closeAccountManager} aria-label="Close account manager"><X size={18} /></button></header>
         <div className="email-account-body">
-          {accounts.map((account) => <div className="email-account-row" key={account.id}><div><strong>{account.name}</strong><span>{account.email}</span></div><div><button type="button" onClick={() => testAccount(account.id)} disabled={accountBusy}>Test</button><button type="button" onClick={() => editAccount(account)} disabled={accountBusy}>Edit</button>{outlookConfigured && account.authType === "oauth2" && <button type="button" onClick={() => reconnectOutlook(account)} disabled={accountBusy}>Reconnect</button>}<button type="button" className="danger" onClick={() => removeAccount(account.id)} disabled={accountBusy}><Trash2 size={14} /></button></div></div>)}
-          {!accounts.length && <p className="email-account-empty">No accounts connected yet.</p>}
-          {outlookConfigured && <div className="email-account-connect"><button type="button" onClick={connectOutlook} disabled={accountBusy}>Connect Outlook</button><span>or add an IMAP account below</span></div>}
-          <form className="email-account-form" onSubmit={addAccount}>
-            <h3>{editingAccountId ? "Edit custom IMAP / SMTP" : "Add custom IMAP / SMTP"}</h3>
-            <label><span>Name</span><input required value={accountForm.name} onChange={(event) => setAccountForm({ ...accountForm, name: event.target.value })} placeholder="Work mailbox" /></label>
-            <label><span>Email</span><input required type="email" value={accountForm.email} onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })} placeholder="you@example.com" /></label>
-            <label><span>IMAP host</span><input required value={accountForm.imapHost} onChange={(event) => setAccountForm({ ...accountForm, imapHost: event.target.value })} placeholder="imap.example.com" /></label>
-            <label><span>Password {editingAccountId && <em>optional</em>}</span><input required={!editingAccountId} type="password" autoComplete="new-password" value={accountForm.password} onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })} /></label>
-            <label><span>SMTP host <em>optional</em></span><input value={accountForm.smtpHost} onChange={(event) => setAccountForm({ ...accountForm, smtpHost: event.target.value })} placeholder="smtp.example.com" /></label>
-            <button className="primary" type="submit" disabled={accountBusy || !accountForm.name || !accountForm.email || !accountForm.imapHost || (!editingAccountId && !accountForm.password)}>{accountBusy ? "Saving…" : editingAccountId ? "Save account" : "Add account"}</button>
-          </form>
+          {accountView === "list" && <div className="email-account-list-view">
+            <button type="button" className="email-add-account" onClick={() => { setAccountView("providers"); setAccountStatus(""); }}><span><Plus size={18} /></span><div><strong>Add an account</strong><small>Gmail, iCloud, Outlook, or custom IMAP</small></div><ChevronRight size={18} /></button>
+            <div className="email-connected-list">{accounts.map((account) => <div className="email-account-row" key={account.id}><div className="email-account-identity"><span className="email-account-avatar">{account.name?.[0]?.toUpperCase() || "@"}</span><div><strong>{account.name}</strong><span>{account.email}</span></div></div><div><button type="button" onClick={() => testAccount(account.id)} disabled={accountBusy}>Test</button><button type="button" onClick={() => editAccount(account)} disabled={accountBusy}>Edit</button>{outlookConfigured && account.authType === "oauth2" && <button type="button" onClick={() => reconnectOutlook(account)} disabled={accountBusy}>Reconnect</button>}<button type="button" className="danger" onClick={() => removeAccount(account.id)} disabled={accountBusy} aria-label={`Remove ${account.name}`}><Trash2 size={14} /></button></div></div>)}</div>
+          </div>}
+          {accountView === "providers" && <div className="email-provider-grid">
+            <button type="button" onClick={() => chooseProvider("gmail")}><span className="provider-mark gmail">G</span><strong>Gmail</strong><small>Google app password</small></button>
+            <button type="button" onClick={() => chooseProvider("icloud")}><span className="provider-mark"><Cloud size={23} /></span><strong>iCloud</strong><small>Apple app-specific password</small></button>
+            {outlookConfigured && <button type="button" onClick={() => chooseProvider("outlook")} disabled={accountBusy}><span className="provider-mark outlook"><Mail size={22} /></span><strong>Outlook</strong><small>Continue with Microsoft</small></button>}
+            <button type="button" onClick={() => chooseProvider("custom")}><span className="provider-mark"><Server size={22} /></span><strong>Custom</strong><small>Any IMAP / SMTP provider</small></button>
+          </div>}
+          {accountView === "form" && <form className="email-account-form" onSubmit={addAccount}>
+            <div className="email-account-section"><h3>Account</h3><div className="email-account-fields two"><label><span>Display name</span><input required value={accountForm.name} onChange={(event) => setAccountForm({ ...accountForm, name: event.target.value })} placeholder="Work mailbox" /></label><label><span>Email address</span><input required type="email" autoComplete="username" value={accountForm.email} onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })} placeholder="you@example.com" /></label></div></div>
+            <div className="email-account-section"><h3>Incoming mail (IMAP)</h3><div className="email-account-fields server"><label><span>Host</span><input required value={accountForm.imapHost} onChange={(event) => setAccountForm({ ...accountForm, imapHost: event.target.value })} placeholder="imap.example.com" /></label><label><span>Port</span><input required type="number" min="1" max="65535" value={accountForm.imapPort} onChange={(event) => setAccountForm({ ...accountForm, imapPort: event.target.value })} /></label><label className="email-secure-check"><input type="checkbox" checked={accountForm.imapSecure} onChange={(event) => setAccountForm({ ...accountForm, imapSecure: event.target.checked })} /><span>TLS</span></label></div></div>
+            <div className="email-account-section"><h3>Outgoing mail (SMTP)</h3><div className="email-account-fields server"><label><span>Host <em>optional</em></span><input value={accountForm.smtpHost} onChange={(event) => setAccountForm({ ...accountForm, smtpHost: event.target.value })} placeholder="smtp.example.com" /></label><label><span>Port</span><input type="number" min="1" max="65535" disabled={!accountForm.smtpHost} value={accountForm.smtpPort} onChange={(event) => setAccountForm({ ...accountForm, smtpPort: event.target.value })} /></label><label className="email-secure-check"><input type="checkbox" disabled={!accountForm.smtpHost} checked={accountForm.smtpSecure} onChange={(event) => setAccountForm({ ...accountForm, smtpSecure: event.target.checked })} /><span>TLS</span></label></div></div>
+            <div className="email-account-section"><h3>Authentication</h3><div className="email-account-fields"><label><span>App password {editingAccountId && <em>leave blank to keep current</em>}</span><input required={!editingAccountId} type="password" autoComplete="new-password" value={accountForm.password} onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })} /></label><p>Use an app password for Gmail or iCloud. Your normal password may be rejected.</p></div></div>
+            <footer className="email-account-actions"><button type="button" onClick={() => setAccountView(accounts.length ? "list" : "providers")}>Cancel</button><button className="primary" type="submit" disabled={accountBusy || !accountForm.name || !accountForm.email || !accountForm.imapHost || (!editingAccountId && !accountForm.password)}>{accountBusy ? "Testing…" : editingAccountId ? "Test and save changes" : "Test and save account"}</button></footer>
+          </form>}
           {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
         </div>
       </section>

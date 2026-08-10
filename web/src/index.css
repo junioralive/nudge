@@ -2735,25 +2735,61 @@ button {
 .email-draft-footer p.success { color: #17633a; }
 .email-draft-footer button { min-height: 38px; padding: 0 14px; }
 .email-draft-footer .send-email-btn { background: var(--purple-ink); }
-.email-account-dialog { width: min(680px, 100%); max-height: calc(100dvh - 44px); display: flex; flex-direction: column; overflow: hidden; border-radius: 23px; background: var(--surface); box-shadow: 0 24px 80px rgba(58,15,82,.18); animation: settings-dialog-in .22s cubic-bezier(.2,.8,.2,1) both; }
-.email-account-body { overflow-y: auto; padding: 15px 22px 22px; }
-.email-account-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.email-account-row > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.email-account-dialog { width: min(980px, calc(100vw - 44px)); height: min(760px, calc(100dvh - 44px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 25px; background: var(--surface); box-shadow: 0 24px 80px rgba(58,15,82,.18); animation: settings-dialog-in .22s cubic-bezier(.2,.8,.2,1) both; }
+.email-account-head { min-height: 76px; padding: 13px 16px 11px 24px; border-bottom: 1px solid var(--border); }
+.email-account-head > div:first-child { min-width: 0; }
+.email-account-head > div:first-child > div { min-width: 0; }
+.email-account-head h2 { font-size: 18px; }
+.email-account-head p { margin: 3px 0 0; color: var(--ink-soft); font-size: 10.5px; }
+.email-account-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
+.email-account-list-view { display: grid; gap: 22px; }
+.email-add-account { width: 100%; min-height: 74px; display: grid; grid-template-columns: 42px minmax(0,1fr) 20px; align-items: center; gap: 13px; padding: 13px 16px; border: 1px dashed #cabed0; border-radius: 16px; background: #fcf9fd; color: var(--ink); text-align: left; cursor: pointer; }
+.email-add-account > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--purple-soft); color: var(--purple-ink); }
+.email-add-account > div { display: grid; gap: 3px; }
+.email-add-account strong { font-size: 12.5px; }
+.email-add-account small { color: var(--ink-soft); font-size: 10px; }
+.email-add-account > svg { color: var(--ink-soft); }
+.email-connected-list { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.email-account-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 72px; padding: 12px 15px; border-bottom: 1px solid var(--border); }
+.email-account-row:last-child { border-bottom: 0; }
+.email-account-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.email-account-identity > div { display: grid; gap: 3px; min-width: 0; }
+.email-account-avatar { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--purple-soft); color: var(--purple-ink) !important; font-size: 13px !important; font-weight: 850; }
 .email-account-row strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.email-account-row span, .email-account-empty, .email-account-connect span, .email-account-status { color: var(--ink-soft); font-size: 10px; }
+.email-account-row span, .email-account-status { color: var(--ink-soft); font-size: 10px; }
 .email-account-row > div:last-child { display: flex; gap: 6px; }
-.email-account-row button, .email-account-form button { min-height: 32px; padding: 0 11px; border: 0; border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
-.email-account-row button.danger { display: grid; width: 32px; place-items: center; padding: 0; color: #9b3030; }
-.email-account-connect { display: flex; align-items: center; gap: 10px; padding: 17px 0 11px; }
-.email-account-connect button { min-height: 36px; padding: 0 13px; border: 0; border-radius: 10px; background: var(--ink); color: white; font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
-.email-account-form { display: grid; gap: 9px; margin-top: 8px; padding: 15px; border-radius: 15px; background: var(--bg); }
-.email-account-form h3 { margin: 0 0 3px; color: var(--ink); font-size: 13px; }
-.email-account-form label { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 9px; }
-.email-account-form label > span { color: var(--ink-soft); font-size: 10px; font-weight: 750; }
-.email-account-form label em { font-style: normal; font-weight: 500; }
-.email-account-form input { width: 100%; min-height: 36px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; outline: 0; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; }
-.email-account-form button.primary { justify-self: end; margin-top: 3px; background: var(--ink); color: white; }
-.email-account-status { margin: 12px 0 0; }
+.email-account-row button, .email-account-form button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
+.email-account-row button.danger { display: grid; width: 34px; place-items: center; padding: 0; color: #9b3030; }
+.email-provider-grid { width: min(720px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin: 30px auto; }
+.email-provider-grid > button { min-height: 156px; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 6px; padding: 20px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.email-provider-grid > button:hover { border-color: var(--purple); box-shadow: 0 10px 28px rgba(58,15,82,.09); transform: translateY(-2px); }
+.email-provider-grid > button:disabled { opacity: .5; cursor: default; transform: none; }
+.provider-mark { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: auto; border-radius: 13px; background: var(--bg); color: var(--ink); }
+.provider-mark.gmail { color: #4285f4; font-size: 21px; font-weight: 850; }
+.provider-mark.outlook { color: #0878d1; }
+.email-provider-grid strong { font-size: 14px; }
+.email-provider-grid small { color: var(--ink-soft); font-size: 10px; }
+.email-account-form { width: min(790px, 100%); display: grid; gap: 13px; margin: 0 auto; }
+.email-account-section { display: grid; gap: 11px; padding: 16px 17px; border: 1px solid var(--border); border-radius: 16px; background: #fdfdfd; }
+.email-account-section h3 { margin: 0; color: var(--ink); font-size: 11px; letter-spacing: .01em; }
+.email-account-fields { display: grid; gap: 10px; }
+.email-account-fields.two { grid-template-columns: 1fr 1fr; }
+.email-account-fields.server { grid-template-columns: minmax(0,1fr) 110px 68px; align-items: end; }
+.email-account-fields label { display: grid; gap: 6px; }
+.email-account-fields label > span { color: var(--ink-soft); font-size: 9.5px; font-weight: 750; }
+.email-account-fields label em { font-style: normal; font-weight: 500; }
+.email-account-fields input { width: 100%; min-height: 39px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 10px; outline: 0; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; }
+.email-account-fields input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(231,135,255,.12); }
+.email-account-fields input:disabled { opacity: .55; }
+.email-account-fields .email-secure-check { min-height: 39px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.email-account-fields .email-secure-check input { width: 14px; min-height: 14px; margin: 0; }
+.email-account-fields .email-secure-check span { color: var(--ink); }
+.email-account-fields p { margin: 0; color: var(--ink-soft); font-size: 9.5px; line-height: 1.5; }
+.email-account-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 2px 0 0; }
+.email-account-actions button { min-height: 39px; }
+.email-account-actions button.primary { background: var(--ink); color: white; }
+.email-account-actions button:disabled, .email-account-row button:disabled { opacity: .45; cursor: default; }
+.email-account-status { width: min(790px, 100%); margin: 13px auto 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
 
 @media (max-width: 720px) {
   .email-toolbar { grid-template-areas: "search search refresh" "account account account" "compose compose compose"; grid-template-columns: minmax(0, 1fr) 42px 42px; }
@@ -2777,11 +2813,20 @@ button {
   .email-message-layer, .email-dialog-layer { align-items: end; padding: 0; }
   .email-message-panel { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
   .email-draft-dialog, .email-task-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 23px 23px 0 0; }
-  .email-account-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 23px 23px 0 0; }
+  .email-account-dialog { width: 100%; height: calc(100dvh - 10px); max-height: none; border-radius: 23px 23px 0 0; }
   .email-message-actions { flex-wrap: wrap; }
   .email-message-actions button { flex: 1 1 auto; }
   .email-draft-body label, .email-task-fields label { grid-template-columns: 1fr; gap: 5px; }
-  .email-account-form label { grid-template-columns: 1fr; gap: 5px; }
+  .email-account-body { padding: 17px; }
+  .email-provider-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px auto; }
+  .email-provider-grid > button { min-height: 132px; padding: 15px; }
+  .email-account-fields.two, .email-account-fields.server { grid-template-columns: 1fr; }
+  .email-account-fields .email-secure-check { justify-content: flex-start; padding: 0 11px; }
+  .email-account-row { align-items: flex-start; flex-direction: column; }
+  .email-account-row > div:last-child { width: 100%; }
+  .email-account-row > div:last-child button { flex: 1; }
+  .email-account-actions { position: sticky; bottom: -17px; padding: 12px 0 0; background: var(--surface); }
+  .email-account-actions button.primary { flex: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
