@@ -1,3 +1,5 @@
+import { normalizeSessionResponse } from "./authSession.js";
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     credentials: "same-origin",
@@ -23,7 +25,9 @@ export function getSession() {
   return fetch("/api/auth/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
     .then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (response.status === 401 || response.status === 503) return body;
+      if (response.status === 401 || response.status === 503) {
+        return normalizeSessionResponse(response.status, body, response.headers.get("WWW-Authenticate"));
+      }
       if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`);
       return body;
     });

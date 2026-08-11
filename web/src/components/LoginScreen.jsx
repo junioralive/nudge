@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 
-export default function LoginScreen({ authMode, configurationError, onLogin }) {
+export default function LoginScreen({ authMode, configurationError, reauthRequired, onLogin }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -41,9 +41,9 @@ export default function LoginScreen({ authMode, configurationError, onLogin }) {
           </form>
         ) : authMode === "access" ? (
           <>
-            <p>Continue with your email to open Nudge.</p>
-            <button type="button" onClick={continueWithEmail}>Continue with email</button>
-            <small>Cloudflare Access protects this private workspace with an email verification code.</small>
+            <p>{reauthRequired ? "Your session expired. Verify your email to continue." : "Continue with your email to open Nudge."}</p>
+            <button type="button" onClick={continueWithEmail}>{reauthRequired ? "Sign in again" : "Continue with email"}</button>
+            <small>{reauthRequired ? "You’ll receive a fresh Cloudflare Access verification code." : "Cloudflare Access protects this private workspace with an email verification code."}</small>
           </>
         ) : (
           <>

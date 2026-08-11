@@ -88,7 +88,7 @@ export default function App() {
 
   if (authState === null) return <div className="app-loading">Loading Nudge…</div>;
   if (!authState.authenticated) {
-    return <LoginScreen authMode={authState.authMode} configurationError={authState.error} onLogin={async (key) => {
+    return <LoginScreen authMode={authState.authMode} configurationError={authState.error} reauthRequired={authState.reauthRequired} onLogin={async (key) => {
       const result = await login(key);
       setAuthState(result);
     }} />;
