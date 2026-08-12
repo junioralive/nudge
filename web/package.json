@@ -17,6 +17,7 @@
     "@modelcontextprotocol/server": "^2.0.0",
     "agents": "^0.20.1",
     "hono": "^4.6.9",
+    "ical.js": "^2.2.1",
     "jose": "^6.2.8",
     "lucide-react": "^0.460.0",
     "mailparser": "^3.9.15",

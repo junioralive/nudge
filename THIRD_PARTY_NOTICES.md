@@ -14,3 +14,10 @@ The upstream dashboard, authentication provider, installer, and external integra
 > The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 >
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+## Second Brain Cloudflare calendar parser
+
+Parts of Nudge's read-only iCal recurrence parser are adapted from
+[`rahilp/second-brain-cloudflare`](https://github.com/rahilp/second-brain-cloudflare)
+at commit `ffbc3439619891ac0c544381abf88cb7ec0baf89`.
+
+Copyright its contributors. Licensed under the MIT License.

@@ -67,6 +67,7 @@ import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
 import { sealJson } from "./email-core/crypto";
 import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./integrationSecrets";
 import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
+import { addCalendarSource, deleteCalendarSource, listCalendarEvents, listCalendarSources, syncCalendarSource } from "./calendar";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -206,6 +207,7 @@ app.get("/api/capabilities", async (c) => {
   memoriesMcp: Boolean(c.env.NUDGE_ACCESS_AUD && c.env.MEMORY_MCP_OBJECT),
   push: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY),
   email: emailConfigured(c.env),
+  calendar: Boolean(integrationEncryptionKey(c.env)),
   outlook: outlookConfigured(c.env) || Boolean(microsoft?.clientId && microsoft?.clientSecret),
   });
 });
@@ -526,6 +528,42 @@ app.delete("/api/tasks/:id", async (c) => {
   return deleted ? c.body(null, 204) : c.json({ error: "not found" }, 404);
 });
 
+app.get("/api/calendar/sources", async (c) => c.json({ sources: await listCalendarSources(c.env) }));
+
+app.post("/api/calendar/sources", async (c) => {
+  const body = await jsonBody<{ provider?: string; url?: string; name?: string; color?: string }>(c);
+  if (!body.provider || !body.url) return c.json({ error: "provider and calendar URL are required" }, 400);
+  try {
+    return c.json(await addCalendarSource(c.env, { provider: body.provider, url: body.url, name: body.name, color: body.color }), 201);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Could not connect calendar" }, 400);
+  }
+});
+
+app.post("/api/calendar/sources/:id/sync", async (c) => {
+  try {
+    return c.json(await syncCalendarSource(c.env, Number(c.req.param("id"))));
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Calendar sync failed" }, 502);
+  }
+});
+
+app.delete("/api/calendar/sources/:id", async (c) => {
+  return await deleteCalendarSource(c.env, Number(c.req.param("id"))) ? c.body(null, 204) : c.json({ error: "not found" }, 404);
+});
+
+app.get("/api/calendar/events", async (c) => {
+  try {
+    return c.json({ events: await listCalendarEvents(c.env, {
+      from: c.req.query("from") || "",
+      to: c.req.query("to") || "",
+      refresh: c.req.query("refresh") !== "0",
+    }) });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "Could not load calendar" }, 400);
+  }
+});
+
 app.get("/api/bootstrap", async (c) => {
   const [settings, workspaces] = await Promise.all([
     c.env.DB.prepare("SELECT key, value, onboarding_completed_at FROM settings WHERE key IN ('name', 'timezone', 'assistant_gender', 'assistant_voice')").all<{ key: string; value: string; onboarding_completed_at?: string | null }>(),
@@ -838,7 +876,9 @@ Tasks are exact operational state. Always use task tools instead of guessing. Ca
 
 Memories is durable personal context. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved, whether it merged or replaced another memory, and the workspace. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.
 
-Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.`;
+Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.
+
+Calendar is read-only operational schedule data. Use list_calendar_events when the user asks about meetings, events, availability, or their schedule. Always pass an explicit date range resolved in the user's timezone. Calendar events are not tasks or Memories; never save or modify them unless the user separately asks to create a Nudge task or remember a durable fact.`;
 }
 
 app.post("/api/voice-token", async (c) => {

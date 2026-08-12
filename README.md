@@ -145,6 +145,12 @@ After login, Settings → Backup & recovery downloads a plaintext recovery kit c
 
 Nudge is deliberately useful without external AI. Add these integrations only when you want their specific capabilities.
 
+### Calendar
+
+Calendar is built in and read-only. Open **Calendar → Sources** and connect a private iCal subscription link from Google Calendar, Outlook, or iCloud. Nudge encrypts the link, refreshes stale events when Calendar opens or the assistant needs schedule context, and keeps the provider as the source of truth. Events are operational calendar data and are never saved to Memories automatically.
+
+The assistant can answer schedule questions such as “What meetings do I have tomorrow?” from the same calendar cache. Refreshes are limited to once every five minutes to avoid unnecessary provider and Cloudflare usage; provider-side iCal publishing can still introduce a short delay.
+
 ### Gemini — voice and assistant intelligence
 
 [Google AI Studio](https://ai.google.dev/aistudio) is where you create and manage a Gemini API key. Gemini powers Nudge's optional live voice assistant, structured task capture, and memory-tool decisions. It does not own your task database, and the key stays server-side in Cloudflare. Reminders do not call Gemini separately.

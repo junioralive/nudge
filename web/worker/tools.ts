@@ -3,8 +3,21 @@ import { addTask, completeTask, deleteTask, isTodayInTimezone, listTasks, public
 import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain";
 import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
+import { listCalendarEvents } from "./calendar";
 
 export const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "list_calendar_events",
+    description: "List read-only calendar meetings and events in an explicit date range. Use when the user asks about their schedule, meetings, availability, or calendar. Calendar events are not tasks or memories.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        from: { type: Type.STRING, description: "ISO 8601 range start with timezone offset." },
+        to: { type: Type.STRING, description: "ISO 8601 range end with timezone offset." },
+      },
+      required: ["from", "to"],
+    },
+  },
   {
     name: "list_email_accounts",
     description: "List the user's connected email accounts and send availability. Use only when the user explicitly asks about email or an account must be selected for a requested email action.",
@@ -209,6 +222,24 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "list_calendar_events") {
+    try {
+      const events = await listCalendarEvents(env, { from: String(args.from || ""), to: String(args.to || "") });
+      return {
+        count: events.length,
+        events: events.slice(0, 100).map((event) => ({
+          title: event.title,
+          starts_at: event.starts_at,
+          ends_at: event.ends_at,
+          all_day: event.all_day,
+          location: event.location,
+          calendar: event.calendar_name,
+        })),
+      };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Calendar unavailable" };
+    }
+  }
   if (name === "list_email_accounts") {
     try {
       return { accounts: safeEmailAccounts(await callEmailTool(env, "email_list_accounts")) };

@@ -1894,6 +1894,59 @@ button {
   animation: fade-up 0.3s ease both;
 }
 
+.calendar-section-toolbar,
+.calendar-tabs,
+.calendar-add-source,
+.calendar-syncing,
+.calendar-source-actions,
+.calendar-event-time {
+  display: flex;
+  align-items: center;
+}
+
+.calendar-section-toolbar { justify-content: space-between; gap: 14px; }
+.calendar-tabs { background: var(--surface); border-radius: 999px; padding: 4px; box-shadow: var(--shadow-sm); }
+.calendar-tabs button { border: 0; background: transparent; color: var(--ink-soft); border-radius: 999px; padding: 9px 17px; font: inherit; font-weight: 700; cursor: pointer; }
+.calendar-tabs button.active { background: var(--ink); color: white; }
+.calendar-syncing { gap: 6px; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.calendar-syncing svg { animation: spin 1s linear infinite; }
+.calendar-add-source { gap: 7px; }
+
+.calendar-event-bars { width: 78%; display: flex; flex-direction: column; gap: 2px; }
+.calendar-event-bars > span { height: 3px; border-radius: 99px; }
+.calendar-event-bars small { font-size: 8px; color: var(--ink-soft); }
+
+.calendar-event-list { display: grid; gap: 10px; margin-bottom: 16px; }
+.calendar-event-card { display: grid; grid-template-columns: minmax(92px, auto) 1fr; gap: 16px; background: var(--surface); border-radius: var(--radius-lg); padding: 16px 18px; box-shadow: inset 4px 0 0 var(--event-color), var(--shadow-sm); }
+.calendar-event-time { align-self: start; gap: 7px; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
+.calendar-event-card h3 { margin: 0; font-size: 15px; }
+.calendar-event-card p { margin: 5px 0 0; color: var(--ink-soft); font-size: 12px; display: flex; align-items: center; flex-wrap: wrap; }
+.calendar-event-card details { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
+.calendar-event-card details div { white-space: pre-wrap; padding-top: 7px; }
+
+.calendar-source-form { display: grid; gap: 14px; background: var(--surface); border-radius: var(--radius-xl); padding: 22px; box-shadow: var(--shadow-sm); }
+.calendar-source-form > div:not(.calendar-source-help):not(.calendar-source-actions) { display: grid; gap: 7px; }
+.calendar-source-form label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.calendar-source-form label span { font-weight: 500; text-transform: none; }
+.calendar-source-form input, .calendar-source-form select { width: 100%; border: 1px solid var(--border); background: var(--bg); border-radius: 13px; padding: 13px 14px; font: inherit; color: var(--ink); }
+.calendar-source-help { display: flex; gap: 9px; color: var(--ink-soft); font-size: 12px; }
+.calendar-source-help svg { flex: 0 0 auto; }
+.calendar-source-actions { justify-content: flex-end; gap: 8px; }
+.calendar-source-actions button { border: 0; border-radius: 999px; padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+.calendar-status { margin: 0; color: var(--ink-soft); font-size: 12px; }
+.calendar-source-list { display: grid; gap: 10px; }
+.calendar-source-card { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 13px; background: var(--surface); border-radius: var(--radius-lg); padding: 16px 18px; box-shadow: var(--shadow-sm); }
+.calendar-source-color { width: 10px; height: 10px; border-radius: 50%; }
+.calendar-source-card > div { display: grid; gap: 3px; }
+.calendar-source-card strong { font-size: 14px; }
+.calendar-source-card span, .calendar-source-card em { font-size: 11px; color: var(--ink-soft); font-style: normal; }
+.calendar-source-card em { color: #b84c4c; }
+.calendar-source-card button { width: 36px; height: 36px; border: 0; background: var(--border); border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.calendar-source-card button.danger-icon { color: #b84c4c; }
+.calendar-empty-source { text-align: center; padding: 48px 24px; background: var(--surface); border-radius: var(--radius-xl); color: var(--ink-soft); }
+.calendar-empty-source h3 { color: var(--ink); margin: 10px 0 5px; }
+.calendar-empty-source p { margin: 0 auto; max-width: 480px; font-size: 13px; }
+
 .calendar-toolbar {
   display: flex;
   align-items: center;
@@ -2024,6 +2077,17 @@ button {
   .calendar-view {
     max-width: 900px;
   }
+}
+
+@media (max-width: 620px) {
+  .calendar-section-toolbar { align-items: stretch; }
+  .calendar-tabs { flex: 1; }
+  .calendar-tabs button { flex: 1; padding-inline: 10px; }
+  .calendar-add-source { font-size: 0; width: 42px; justify-content: center; }
+  .calendar-add-source svg { width: 18px; }
+  .calendar-event-card { grid-template-columns: 1fr; gap: 7px; }
+  .calendar-source-card { grid-template-columns: auto 1fr auto; }
+  .calendar-source-card .danger-icon { grid-column: 3; }
 }
 
 /* Notifications page */

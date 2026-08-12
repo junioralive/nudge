@@ -37,6 +37,15 @@ export function login(key) {
 }
 export function fetchCapabilities() { return apiFetch("/api/capabilities"); }
 
+export function fetchCalendarSources() { return apiFetch("/api/calendar/sources"); }
+export function addCalendarSource(values) { return apiFetch("/api/calendar/sources", { method: "POST", body: JSON.stringify(values) }); }
+export function syncCalendarSource(id) { return apiFetch(`/api/calendar/sources/${encodeURIComponent(id)}/sync`, { method: "POST" }); }
+export function removeCalendarSource(id) { return apiFetch(`/api/calendar/sources/${encodeURIComponent(id)}`, { method: "DELETE" }); }
+export function fetchCalendarEvents(from, to, refresh = true) {
+  const params = new URLSearchParams({ from, to, refresh: refresh ? "1" : "0" });
+  return apiFetch(`/api/calendar/events?${params}`);
+}
+
 export function fetchEmailStatus() { return apiFetch("/api/email/status"); }
 export function fetchEmailAccounts() { return apiFetch("/api/email/accounts"); }
 export function startOutlookOAuth(displayName = "Outlook", accountId = "") {
