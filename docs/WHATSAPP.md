@@ -95,8 +95,16 @@ The in-app Settings flow is preferred because it is easier to replace or remove 
 | Ask the assistant | Lists or reads WhatsApp only after an explicit WhatsApp request. |
 | Compose | Creates a visible preview; the assistant cannot send it. |
 | Send | Requires a single-use confirmation bound to the exact recipient and text. |
+| Contacts | Searches GOWA's synced address book, including contacts without chat history. |
+| Message search | Filters one explicitly selected chat by text, date, sender, or media. |
+| Groups | Lists groups and reads group details or participants without changing membership. |
+| Message state | Reacts, marks read, stars, or unstars only after an explicit instruction. |
+| Chat state | Archives, unarchives, pins, or unpins only after an explicit instruction. |
+| Forward | Requires a single-use confirmation bound to the source message and destination. |
 
 Approvals expire after ten minutes and cannot be replayed. During a voice call, Nudge reads back the exact recipient and message, asks once, and sends immediately when the user explicitly confirms in the next turn. No separate WhatsApp-screen approval is required. Nudge does not poll WhatsApp in the background, run WhatsApp from Cron, save chats to D1, cache message bodies in the service worker, or add messages to Memories automatically. There is no WhatsApp MCP endpoint in this release.
+
+Nudge intentionally does not expose GOWA's device logout, message deletion/revocation, message editing, group administration, remote media download, or call-control tools. Those operations have a larger destructive or account-security impact than a private assistant needs.
 
 Nudge resolves one-to-one chat labels from GOWA's synced contact directory before falling back to GOWA's stored chat name or phone number. Contact-name search includes synced contacts even when they have no recent conversation, including assistant requests such as “message Mrs Junior.” Rename contacts on the phone and allow GOWA to sync them; Nudge does not maintain a separate address book.
 

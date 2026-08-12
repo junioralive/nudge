@@ -4,7 +4,11 @@ import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain
 import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
-import { consumeWhatsAppApproval, createWhatsAppApproval, getWhatsAppMessages, listWhatsAppChats, resolveWhatsAppRecipient, sendWhatsAppMessage } from "./whatsapp";
+import {
+  consumeWhatsAppApproval, consumeWhatsAppForwardApproval, createWhatsAppApproval, createWhatsAppForwardApproval,
+  forwardWhatsAppMessage, getWhatsAppGroup, getWhatsAppMessages, listWhatsAppChats, listWhatsAppGroups,
+  resolveWhatsAppRecipient, searchWhatsAppContacts, sendWhatsAppMessage, updateWhatsAppChat, updateWhatsAppMessage,
+} from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
   {
@@ -16,12 +20,55 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
   },
   {
+    name: "search_whatsapp_contacts",
+    description: "Search the synced WhatsApp address book by saved name or phone number, including contacts with no chat history. This never reads messages.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { query: { type: Type.STRING }, limit: { type: Type.NUMBER } },
+      required: ["query"],
+    },
+  },
+  {
     name: "read_whatsapp_chat",
     description: "Read recent messages from one selected WhatsApp chat. Use only after an explicit request to open, read, summarize, or answer from that chat.",
     parameters: {
       type: Type.OBJECT,
-      properties: { jid: { type: Type.STRING }, limit: { type: Type.NUMBER } },
+      properties: {
+        jid: { type: Type.STRING }, limit: { type: Type.NUMBER }, search: { type: Type.STRING },
+        startTime: { type: Type.STRING }, endTime: { type: Type.STRING }, mediaOnly: { type: Type.BOOLEAN }, fromMe: { type: Type.BOOLEAN },
+      },
       required: ["jid"],
+    },
+  },
+  {
+    name: "list_whatsapp_groups",
+    description: "List connected WhatsApp groups without reading their messages. Use only when the user explicitly asks about WhatsApp groups.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "get_whatsapp_group",
+    description: "Get the name, topic, and participant list for one selected WhatsApp group. This does not read group messages or modify the group.",
+    parameters: { type: Type.OBJECT, properties: { jid: { type: Type.STRING } }, required: ["jid"] },
+  },
+  {
+    name: "update_whatsapp_message_state",
+    description: "React to, mark read, star, or unstar one known WhatsApp message after an explicit user request. Reactions are visible to chat participants; never infer one without the user specifying it.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: { type: Type.STRING, enum: ["react", "mark_read", "star", "unstar"] },
+        jid: { type: Type.STRING }, messageId: { type: Type.STRING }, emoji: { type: Type.STRING },
+      },
+      required: ["action", "jid", "messageId"],
+    },
+  },
+  {
+    name: "update_whatsapp_chat_state",
+    description: "Archive, unarchive, pin, or unpin one WhatsApp chat after the user explicitly requests that exact reversible action.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { action: { type: Type.STRING, enum: ["archive", "unarchive", "pin", "unpin"] }, jid: { type: Type.STRING } },
+      required: ["action", "jid"],
     },
   },
   {
@@ -41,6 +88,20 @@ export const toolDeclarations: FunctionDeclaration[] = [
       properties: { approval: { type: Type.STRING, description: "The signed approval returned by prepare_whatsapp_message." } },
       required: ["approval"],
     },
+  },
+  {
+    name: "prepare_whatsapp_forward",
+    description: "Prepare forwarding one known WhatsApp message to an exact recipient. Read back the destination and wait for explicit confirmation before calling forward_whatsapp_message.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { messageId: { type: Type.STRING }, jid: { type: Type.STRING }, recipient: { type: Type.STRING } },
+      required: ["messageId"],
+    },
+  },
+  {
+    name: "forward_whatsapp_message",
+    description: "Forward the previously prepared WhatsApp message. Call only after explicit confirmation in a later turn.",
+    parameters: { type: Type.OBJECT, properties: { approval: { type: Type.STRING } }, required: ["approval"] },
   },
   {
     name: "list_calendar_events",
@@ -258,13 +319,41 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "search_whatsapp_contacts") {
+    try { return { contacts: await searchWhatsAppContacts(env, args.query, Math.min(Number(args.limit) || 10, 50)) }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
   if (name === "list_whatsapp_chats") {
     try { return await listWhatsAppChats(env, { search: args.search, limit: Math.min(Number(args.limit) || 10, 25) }); }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
   }
   if (name === "read_whatsapp_chat") {
-    try { return await getWhatsAppMessages(env, args.jid, { limit: Math.min(Number(args.limit) || 20, 50) }); }
+    try {
+      return await getWhatsAppMessages(env, args.jid, {
+        limit: Math.min(Number(args.limit) || 20, 50), search: args.search, startTime: args.startTime, endTime: args.endTime,
+        mediaOnly: args.mediaOnly === undefined ? undefined : Boolean(args.mediaOnly),
+        fromMe: args.fromMe === undefined ? undefined : Boolean(args.fromMe),
+      });
+    }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
+  if (name === "list_whatsapp_groups") {
+    try { return { groups: await listWhatsAppGroups(env) }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
+  if (name === "get_whatsapp_group") {
+    try { return await getWhatsAppGroup(env, args.jid); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
+  if (name === "update_whatsapp_message_state") {
+    if (!args.action || !args.jid || !args.messageId) return { ok: false, error: "action, jid, and messageId are required" };
+    try { return await updateWhatsAppMessage(env, { action: args.action, jid: args.jid, messageId: args.messageId, emoji: args.emoji }); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not update WhatsApp message" }; }
+  }
+  if (name === "update_whatsapp_chat_state") {
+    if (!args.action || !args.jid) return { ok: false, error: "action and jid are required" };
+    try { return await updateWhatsAppChat(env, { action: args.action, jid: args.jid }); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not update WhatsApp chat" }; }
   }
   if (name === "prepare_whatsapp_message") {
     if (!args.message?.trim()) return { ok: false, error: "message is required" };
@@ -297,6 +386,30 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : "Could not send WhatsApp message" };
     }
+  }
+  if (name === "prepare_whatsapp_forward") {
+    if (!args.messageId) return { ok: false, error: "messageId is required" };
+    let jid = String(args.jid || "").slice(0, 240);
+    let recipient = String(args.recipient || "").slice(0, 300);
+    if (!jid && recipient) {
+      try {
+        const resolved = await resolveWhatsAppRecipient(env, recipient);
+        if (!resolved.match) return { ok: false, error: resolved.candidates.length ? "Recipient is ambiguous" : "WhatsApp contact not found", candidates: resolved.candidates };
+        jid = resolved.match.jid;
+        recipient = resolved.match.name;
+      } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+    }
+    if (!jid) return { ok: false, error: "recipient or chat is required" };
+    try {
+      return { ok: true, requires_confirmation: true, approval: await createWhatsAppForwardApproval(env, { jid, messageId: args.messageId, recipient }), draft: { jid, recipient, messageId: String(args.messageId) } };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not prepare WhatsApp forward" }; }
+  }
+  if (name === "forward_whatsapp_message") {
+    if (!args.approval) return { ok: false, error: "approval is required" };
+    try {
+      const approved = await consumeWhatsAppForwardApproval(env, String(args.approval));
+      return { ok: true, ...(await forwardWhatsAppMessage(env, approved)) };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not forward WhatsApp message" }; }
   }
   if (name === "list_calendar_events") {
     try {
