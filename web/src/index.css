@@ -2773,6 +2773,11 @@ button {
 
 /* Email assistant */
 .email-view { display: flex; flex-direction: column; gap: 16px; min-width: 0; animation: fade-up .28s ease both; }
+.email-section-nav { width: fit-content; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.email-section-nav button { min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; transition: background .16s ease, color .16s ease; }
+.email-section-nav button.active { background: var(--ink); color: white; }
+.email-section-nav button > span { min-width: 19px; padding: 2px 5px; border-radius: 999px; background: rgba(23,23,26,.07); font-size: 8.5px; text-align: center; }
+.email-section-nav button.active > span { background: rgba(255,255,255,.16); }
 .email-compose-btn, .email-toolbar button, .email-message-actions button, .email-draft-footer button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 11px; background: var(--ink); color: white; font-size: 11.5px; font-weight: 750; cursor: pointer; transition: transform .16s ease, background .16s ease, opacity .16s ease;
 }
@@ -2872,7 +2877,14 @@ button {
 .email-draft-footer p.success { color: #17633a; }
 .email-draft-footer button { min-height: 38px; padding: 0 14px; }
 .email-draft-footer .send-email-btn { background: var(--purple-ink); }
-.email-account-dialog { width: min(980px, calc(100vw - 44px)); height: min(760px, calc(100dvh - 44px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 25px; background: var(--surface); box-shadow: 0 24px 80px rgba(58,15,82,.18); animation: settings-dialog-in .22s cubic-bezier(.2,.8,.2,1) both; }
+.email-accounts-page { min-height: 420px; overflow: hidden; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.email-accounts-page-head { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; border-bottom: 1px solid var(--border); }
+.email-accounts-page-head > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.email-accounts-page-head > div > div { min-width: 0; }
+.email-accounts-page-head h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
+.email-accounts-page-head p { margin: 4px 0 0; color: var(--ink-soft); font-size: 10.5px; }
+.email-accounts-page-head > div > button { flex: 0 0 auto; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg); color: var(--ink-soft); cursor: pointer; }
+.email-accounts-add-button { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 13px; border: 0; border-radius: 11px; background: var(--ink); color: white; font: inherit; font-size: 10.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .email-account-head { min-height: 76px; padding: 13px 16px 11px 24px; border-bottom: 1px solid var(--border); }
 .email-account-head > div:first-child { min-width: 0; }
 .email-account-head > div:first-child > div { min-width: 0; }
@@ -2929,6 +2941,8 @@ button {
 .email-account-status { width: min(790px, 100%); margin: 13px auto 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
 
 @media (max-width: 720px) {
+  .email-section-nav { width: 100%; }
+  .email-section-nav button { flex: 1; justify-content: center; }
   .email-toolbar { grid-template-areas: "search search refresh" "account account account" "compose compose compose"; grid-template-columns: minmax(0, 1fr) 42px 42px; }
   .email-toolbar .email-compose-btn { width: 100%; min-width: 0; min-height: 44px; padding: 0 14px; font-size: 11.5px; }
   .email-compose-btn svg { width: 17px; height: 17px; }
@@ -2950,7 +2964,12 @@ button {
   .email-message-layer, .email-dialog-layer { align-items: end; padding: 0; }
   .email-message-panel { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
   .email-draft-dialog, .email-task-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 23px 23px 0 0; }
-  .email-account-dialog { width: 100%; height: calc(100dvh - 10px); max-height: none; border-radius: 23px 23px 0 0; }
+  .email-accounts-page { min-height: 0; border-radius: 16px; }
+  .email-accounts-page-head { align-items: flex-start; padding: 15px; }
+  .email-accounts-page-head p { line-height: 1.45; }
+  .email-accounts-add-button { min-width: 40px; padding: 0 11px; }
+  .email-accounts-add-button { font-size: 0; }
+  .email-accounts-add-button svg { width: 17px; height: 17px; }
   .email-message-actions { flex-wrap: wrap; }
   .email-message-actions button { flex: 1 1 auto; }
   .email-draft-body label, .email-task-fields label { grid-template-columns: 1fr; gap: 5px; }
