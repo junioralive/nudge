@@ -21,11 +21,11 @@ import {
 } from "../api.js";
 
 const SECTIONS = [
-  ["overview", "Overview"],
-  ["ask", "Ask Memories"],
-  ["library", "Library"],
-  ["graph", "Graph"],
-  ["settings", "Settings & backup"],
+  ["overview", "Overview", Sparkles],
+  ["ask", "Ask", MessageCircleQuestion],
+  ["library", "Library", Search],
+  ["graph", "Graph", Link2],
+  ["settings", "Backup", Archive],
 ];
 
 function entriesFrom(response) {
@@ -115,7 +115,7 @@ export default function MemoriesView({ activeWorkspace, section = "overview", on
   const nodeMap = useMemo(() => Object.fromEntries((graph.nodes || []).map((node) => [node.id, node])), [graph]);
 
   return <div className="memories-view">
-    <div className="memory-mobile-tabs" role="tablist">{SECTIONS.map(([key, label]) => <button className={section === key ? "active" : ""} key={key} onClick={() => onSectionChange?.(key)}>{label}</button>)}</div>
+    <nav className="email-section-nav memory-section-nav" aria-label="Memory sections">{SECTIONS.map(([key, label, Icon]) => <button type="button" className={section === key ? "active" : ""} key={key} onClick={() => onSectionChange?.(key)}><Icon size={16} />{label}</button>)}</nav>
 
     {section === "overview" && <>
       <form className="memory-capture" onSubmit={remember}><div className="memory-capture-label"><Sparkles size={16} /> Capture something worth keeping</div><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="A preference, decision, relationship, or project fact…" /><button disabled={saving || !draft.trim()}><Plus size={17} /> {saving ? "Saving…" : "Remember"}</button></form>

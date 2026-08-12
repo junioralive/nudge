@@ -114,7 +114,7 @@ export default function CalendarView({ tasks, workspaces, workspaceColors = {}, 
   if (tab === "sources") return (
     <div className="calendar-view">
       <div className="calendar-section-toolbar">
-        <div className="calendar-tabs"><button onClick={() => setTab("calendar")}>Calendar</button><button className="active">Sources</button></div>
+        <nav className="email-section-nav calendar-section-nav" aria-label="Calendar sections"><button type="button" onClick={() => setTab("calendar")}><CalendarDays size={16} />Calendar</button><button type="button" className="active"><Link2 size={16} />Sources<span>{sources.length}</span></button></nav>
         <button className="primary-btn calendar-add-source" onClick={() => setAdding((value) => !value)}><Plus size={17} /> Add calendar</button>
       </div>
       {adding && <form className="calendar-source-form" onSubmit={connectCalendar}>
@@ -138,7 +138,7 @@ export default function CalendarView({ tasks, workspaces, workspaceColors = {}, 
 
   return (
     <div className="calendar-view">
-      <div className="calendar-section-toolbar"><div className="calendar-tabs"><button className="active">Calendar</button><button onClick={() => setTab("sources")}>Sources</button></div>{loading && <span className="calendar-syncing"><RefreshCw size={14} /> Syncing</span>}</div>
+      <div className="calendar-section-toolbar"><nav className="email-section-nav calendar-section-nav" aria-label="Calendar sections"><button type="button" className="active"><CalendarDays size={16} />Calendar</button><button type="button" onClick={() => setTab("sources")}><Link2 size={16} />Sources<span>{sources.length}</span></button></nav>{loading && <span className="calendar-syncing"><RefreshCw size={14} /> Syncing</span>}</div>
       <div className="calendar-toolbar">
         <div className="calendar-nav">
           <button onClick={() => shiftMonth(-1)} aria-label="Previous month">
