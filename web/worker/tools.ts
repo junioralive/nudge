@@ -4,7 +4,7 @@ import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain
 import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
-import { getWhatsAppMessages, listWhatsAppChats, resolveWhatsAppRecipient } from "./whatsapp";
+import { consumeWhatsAppApproval, createWhatsAppApproval, getWhatsAppMessages, listWhatsAppChats, resolveWhatsAppRecipient, sendWhatsAppMessage } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
   {
@@ -26,11 +26,20 @@ export const toolDeclarations: FunctionDeclaration[] = [
   },
   {
     name: "prepare_whatsapp_message",
-    description: "Prepare a WhatsApp message for visible user review. This never sends. The user must confirm sending in the Nudge WhatsApp screen.",
+    description: "Prepare an exact WhatsApp recipient and message for verbal confirmation. Read the recipient and message back, then wait for an explicit yes/confirm/send before calling send_whatsapp_message. Never treat the original compose request as confirmation.",
     parameters: {
       type: Type.OBJECT,
       properties: { jid: { type: Type.STRING }, recipient: { type: Type.STRING }, message: { type: Type.STRING } },
       required: ["message"],
+    },
+  },
+  {
+    name: "send_whatsapp_message",
+    description: "Send the previously prepared WhatsApp message. Call only after the user explicitly confirms the exact prepared recipient and message in a later turn. Never call in the same turn as prepare_whatsapp_message.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { approval: { type: Type.STRING, description: "The signed approval returned by prepare_whatsapp_message." } },
+      required: ["approval"],
     },
   },
   {
@@ -272,7 +281,22 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
       }
     }
     if (!jid) return { ok: false, error: "recipient or chat is required" };
-    return { ok: true, requires_confirmation: true, draft: { jid, recipient, message: String(args.message).slice(0, 10_000) } };
+    try {
+      const message = String(args.message).slice(0, 10_000);
+      const approval = await createWhatsAppApproval(env, { jid, message });
+      return { ok: true, requires_confirmation: true, approval, draft: { jid, recipient, message } };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not prepare WhatsApp message" };
+    }
+  }
+  if (name === "send_whatsapp_message") {
+    if (!args.approval) return { ok: false, error: "approval is required" };
+    try {
+      const approved = await consumeWhatsAppApproval(env, String(args.approval));
+      return { ok: true, ...(await sendWhatsAppMessage(env, approved)) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not send WhatsApp message" };
+    }
   }
   if (name === "list_calendar_events") {
     try {

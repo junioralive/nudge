@@ -942,7 +942,7 @@ Email is private operational data. Use email tools only when the user explicitly
 
 Calendar is read-only operational schedule data. Use list_calendar_events when the user asks about meetings, events, availability, or their schedule. Always pass an explicit date range resolved in the user's timezone. Calendar events are not tasks or Memories; never save or modify them unless the user separately asks to create a Nudge task or remember a durable fact.
 
-WhatsApp is private operational data. Use WhatsApp tools only when the user explicitly asks about WhatsApp, a specific chat, or composing a message. Listing chats does not permit reading messages. Read a chat only after explicit intent. You may prepare a message for visible review, but never send it yourself. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
+WhatsApp is private operational data. Use WhatsApp tools only when the user explicitly asks about WhatsApp, a specific chat, or composing a message. Listing chats does not permit reading messages. Read a chat only after explicit intent. To send, first call prepare_whatsapp_message, clearly read back the exact recipient and message, and ask one short confirmation question. Wait for a later user turn containing an explicit yes, confirm, or send before calling send_whatsapp_message. Never prepare and send in the same turn. After sending, state whether it succeeded. Do not require the user to open the WhatsApp screen. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
 }
 
 app.post("/api/voice-token", async (c) => {

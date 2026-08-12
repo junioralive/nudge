@@ -96,7 +96,7 @@ The in-app Settings flow is preferred because it is easier to replace or remove 
 | Compose | Creates a visible preview; the assistant cannot send it. |
 | Send | Requires a single-use confirmation bound to the exact recipient and text. |
 
-Approvals expire after ten minutes and cannot be replayed. Nudge does not poll WhatsApp in the background, run WhatsApp from Cron, save chats to D1, cache message bodies in the service worker, or add messages to Memories automatically. There is no WhatsApp MCP endpoint in this release.
+Approvals expire after ten minutes and cannot be replayed. During a voice call, Nudge reads back the exact recipient and message, asks once, and sends immediately when the user explicitly confirms in the next turn. No separate WhatsApp-screen approval is required. Nudge does not poll WhatsApp in the background, run WhatsApp from Cron, save chats to D1, cache message bodies in the service worker, or add messages to Memories automatically. There is no WhatsApp MCP endpoint in this release.
 
 Nudge resolves one-to-one chat labels from GOWA's synced contact directory before falling back to GOWA's stored chat name or phone number. Contact-name search includes synced contacts even when they have no recent conversation, including assistant requests such as “message Mrs Junior.” Rename contacts on the phone and allow GOWA to sync them; Nudge does not maintain a separate address book.
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { consumeWhatsAppApproval, createWhatsAppApproval, listWhatsAppChats, whatsappConfig } from "./whatsapp";
+import { runTool } from "./tools";
 import type { Env } from "./types";
 
 function env(): Env {
@@ -77,5 +78,21 @@ describe("WhatsApp adapter", () => {
 
   it("accepts synced Linked ID recipients", async () => {
     await expect(createWhatsAppApproval(env(), { jid: "123456789@lid", message: "Hello" })).resolves.toContain(".");
+  });
+
+  it("sends a prepared message after one explicit voice confirmation", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/user/my/contacts")) return new Response(JSON.stringify({ results: { data: [{ jid: "919777777777@s.whatsapp.net", name: "Ayan" }] } }), { status: 200 });
+      if (url.includes("/chats?")) return new Response(JSON.stringify({ results: { data: [] } }), { status: 200 });
+      if (url.endsWith("/send/message")) return new Response(JSON.stringify({ results: { message_id: "sent-1" } }), { status: 200 });
+      return new Response("not found", { status: 404 });
+    });
+    const testEnv = env();
+    const prepared = await runTool(testEnv, "prepare_whatsapp_message", { recipient: "Ayan", message: "Hello" });
+    expect(prepared).toMatchObject({ ok: true, requires_confirmation: true, draft: { recipient: "Ayan", message: "Hello" } });
+    const sent = await runTool(testEnv, "send_whatsapp_message", { approval: prepared.approval });
+    expect(sent).toMatchObject({ ok: true, sent: true, messageId: "sent-1" });
+    fetchMock.mockRestore();
   });
 });

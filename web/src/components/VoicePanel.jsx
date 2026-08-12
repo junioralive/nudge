@@ -193,6 +193,8 @@ export default function VoicePanel({ onClose, onTaskChange, activeWorkspace = "P
     if (name === "read_email") return result?.ok ? "Read the selected email" : "Could not read that email";
     if (name === "prepare_email_draft") return result?.ok ? "Draft ready for your review" : "Could not prepare the draft";
     if (name === "create_task_from_email") return result?.ok ? "Created a task from email" : "Could not create the task";
+    if (name === "prepare_whatsapp_message") return result?.ok ? "WhatsApp message ready for confirmation" : "Could not prepare the WhatsApp message";
+    if (name === "send_whatsapp_message") return result?.sent ? "WhatsApp message sent" : "Could not send the WhatsApp message";
     return "";
   }
 
