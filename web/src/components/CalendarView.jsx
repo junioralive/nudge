@@ -115,7 +115,7 @@ export default function CalendarView({ tasks, workspaces, workspaceColors = {}, 
     <div className="calendar-view">
       <div className="calendar-section-toolbar">
         <nav className="email-section-nav calendar-section-nav" aria-label="Calendar sections"><button type="button" onClick={() => setTab("calendar")}><CalendarDays size={16} />Calendar</button><button type="button" className="active"><Link2 size={16} />Sources<span>{sources.length}</span></button></nav>
-        <button className="primary-btn calendar-add-source" onClick={() => setAdding((value) => !value)}><Plus size={17} /> Add calendar</button>
+        <button type="button" className={`calendar-add-source ${adding ? "active" : ""}`} onClick={() => setAdding((value) => !value)}><Plus size={17} />{adding ? "Close" : "Add calendar"}</button>
       </div>
       {adding && <form className="calendar-source-form" onSubmit={connectCalendar}>
         <div><label>Provider</label><select value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })}><option value="google">Google Calendar</option><option value="outlook">Outlook Calendar</option><option value="icloud">iCloud Calendar</option></select></div>

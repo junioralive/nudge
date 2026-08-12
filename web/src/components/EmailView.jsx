@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Archive, ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
   addEmailAccount,
@@ -55,6 +55,8 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountStatus, setAccountStatus] = useState("");
   const [editingAccountId, setEditingAccountId] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
 
   const unread = useMemo(() => messages.filter((item) => !item.seen).length, [messages]);
 
@@ -105,6 +107,28 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   useEffect(() => {
     if (accountsInitiallyOpen) openAccountManager();
   }, [accountsInitiallyOpen]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    function closeAccountMenu(event) {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && accountMenuRef.current?.contains(event.target)) return;
+      setAccountMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeAccountMenu);
+    document.addEventListener("keydown", closeAccountMenu);
+    return () => {
+      document.removeEventListener("pointerdown", closeAccountMenu);
+      document.removeEventListener("keydown", closeAccountMenu);
+    };
+  }, [accountMenuOpen]);
+
+  function selectInboxAccount(nextAccountId) {
+    setAccountId(nextAccountId);
+    setQuery("");
+    setAccountMenuOpen(false);
+    loadInbox(nextAccountId);
+  }
 
   async function submitSearch(event) {
     event.preventDefault();
@@ -309,10 +333,24 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
     <div className="email-toolbar">
       <form onSubmit={submitSearch}><Search size={17} /><input disabled={!accounts.length} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sender, subject, or keywords" /><button type="submit" disabled={!accounts.length}>Search</button></form>
       <button type="button" className="email-compose-btn" disabled={!accounts.length} onClick={() => setCompose({ accountId: accountId || accounts[0]?.id || "" })}><Mail size={16} /><span>New email</span></button>
-      <select value={accountId} onChange={(event) => { setAccountId(event.target.value); setQuery(""); loadInbox(event.target.value); }}>
-        <option value="">All accounts</option>
-        {accounts.map((account) => <option value={account.id} key={account.id}>{account.name} · {account.email}</option>)}
-      </select>
+      <div className={`email-account-select ${accountMenuOpen ? "open" : ""}`} ref={accountMenuRef}>
+        <button type="button" className="email-account-select-trigger" aria-haspopup="listbox" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}>
+          <span>{accountId ? accounts.find((account) => account.id === accountId)?.name || "Account" : "All accounts"}</span>
+          <ChevronDown size={16} />
+        </button>
+        {accountMenuOpen && <div className="email-account-select-menu" role="listbox" aria-label="Filter inbox by account">
+          <button type="button" role="option" aria-selected={!accountId} className={!accountId ? "selected" : ""} onClick={() => selectInboxAccount("")}>
+            <span className="email-account-select-icon"><Inbox size={16} /></span>
+            <span><strong>All accounts</strong><small>Show every connected inbox</small></span>
+            {!accountId && <Check size={16} />}
+          </button>
+          {accounts.map((account) => <button type="button" role="option" aria-selected={accountId === account.id} className={accountId === account.id ? "selected" : ""} key={account.id} onClick={() => selectInboxAccount(account.id)}>
+            <span className="email-account-select-avatar">{account.name?.[0]?.toUpperCase() || "@"}</span>
+            <span><strong>{account.name}</strong><small>{account.email}</small></span>
+            {accountId === account.id && <Check size={16} />}
+          </button>)}
+        </div>}
+      </div>
       <button type="button" className="email-refresh" onClick={() => loadInbox()} aria-label="Refresh inbox"><RefreshCw size={16} /></button>
     </div>
 

@@ -1902,7 +1902,26 @@ button {
 .calendar-section-toolbar { justify-content: space-between; gap: 14px; }
 .calendar-syncing { gap: 6px; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
 .calendar-syncing svg { animation: spin 1s linear infinite; }
-.calendar-add-source { gap: 7px; }
+.calendar-add-source {
+  min-height: 42px;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--ink);
+  box-shadow: var(--shadow-sm);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.calendar-add-source:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(23,23,26,.15); }
+.calendar-add-source:focus-visible { outline: 0; box-shadow: 0 0 0 4px rgba(231,135,255,.22), var(--shadow-sm); }
+.calendar-add-source.active { background: var(--purple-soft); color: var(--purple-ink); }
+.calendar-add-source.active svg { transform: rotate(45deg); }
+.calendar-add-source svg { transition: transform .18s ease; }
 
 .calendar-event-bars { width: 78%; display: flex; flex-direction: column; gap: 2px; }
 .calendar-event-bars > span { height: 3px; border-radius: 99px; }
@@ -2872,7 +2891,23 @@ button {
 .email-toolbar .email-compose-btn { grid-area: compose; white-space: nowrap; }
 .email-toolbar input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
 .email-toolbar form button { min-height: 31px; padding: 0 12px; border-radius: 9px; }
-.email-toolbar select { grid-area: account; min-width: 0; padding: 0 12px; border: 0; border-radius: 13px; outline: 0; background: var(--surface); box-shadow: var(--shadow-sm); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; }
+.email-account-select { position: relative; grid-area: account; min-width: 0; }
+.email-account-select-trigger { width: 100%; min-height: 43px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px 0 15px; border: 1px solid transparent !important; border-radius: 13px !important; background: var(--surface) !important; box-shadow: var(--shadow-sm); color: var(--ink) !important; font-size: 11px !important; font-weight: 750 !important; cursor: pointer; }
+.email-account-select-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-account-select-trigger svg { flex: 0 0 auto; color: var(--ink-soft); transition: transform .18s ease; }
+.email-account-select.open .email-account-select-trigger { border-color: rgba(231,135,255,.7) !important; box-shadow: 0 0 0 3px rgba(231,135,255,.12), var(--shadow-sm); }
+.email-account-select.open .email-account-select-trigger svg { transform: rotate(180deg); }
+.email-account-select-menu { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: max(100%, 270px); max-height: 300px; overflow-y: auto; padding: 7px; border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.98); box-shadow: 0 18px 45px rgba(25,22,29,.14); backdrop-filter: blur(18px); animation: email-select-in .16s ease-out; }
+.email-account-select-menu > button { width: 100%; min-height: 54px; display: grid; grid-template-columns: 34px minmax(0,1fr) 18px; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.email-account-select-menu > button:hover, .email-account-select-menu > button:focus-visible { outline: 0; background: var(--bg); }
+.email-account-select-menu > button.selected { background: var(--purple-soft); color: var(--purple-ink); }
+.email-account-select-menu > button > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.email-account-select-menu strong, .email-account-select-menu small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-account-select-menu strong { font-size: 10.5px; font-weight: 800; }
+.email-account-select-menu small { color: var(--ink-soft); font-size: 9px; }
+.email-account-select-icon, .email-account-select-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--surface); color: var(--purple-ink); box-shadow: inset 0 0 0 1px var(--border); }
+.email-account-select-avatar { font-size: 11px; font-weight: 850; }
+@keyframes email-select-in { from { opacity: 0; transform: translateY(-5px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .email-refresh { width: 42px; min-height: 42px; padding: 0; background: var(--surface) !important; color: var(--ink) !important; box-shadow: var(--shadow-sm); }
 .email-toolbar .email-refresh { grid-area: refresh; }
 .email-error, .email-warning { padding: 11px 13px; border-radius: 11px; font-size: 11px; font-weight: 650; }
@@ -3026,7 +3061,9 @@ button {
   .email-compose-btn svg { width: 17px; height: 17px; }
   .email-overview { grid-template-columns: 1fr 1fr; }
   .email-overview > div:last-child { display: none; }
-  .email-toolbar select { width: 100%; min-height: 42px; padding-right: 32px; overflow: hidden; text-overflow: ellipsis; }
+  .email-account-select { width: 100%; }
+  .email-account-select-trigger { min-height: 44px; }
+  .email-account-select-menu { position: fixed; z-index: 80; right: 18px; bottom: 84px; left: 18px; top: auto; width: auto; max-height: min(360px, 52vh); border-radius: 18px; }
   .email-row { grid-template-columns: 7px minmax(0,1fr) 85px 16px; gap: 9px; padding: 13px 14px; }
   .email-row-from { grid-column: 2; }
   .email-row-subject { grid-column: 2 / 4; grid-row: 2; font-weight: 650; }
