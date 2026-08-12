@@ -84,23 +84,47 @@ interface WhatsAppContact {
   name: string;
 }
 
-function contactName(value: unknown): string {
-  return clean(value, 300);
+function contactName(value: any): string {
+  if (typeof value === "string") return clean(value, 300);
+  if (!value || typeof value !== "object") return "";
+  return clean(
+    value.name || value.full_name || value.fullName || value.FullName ||
+    value.push_name || value.pushName || value.PushName ||
+    value.business_name || value.businessName || value.BusinessName,
+    300,
+  );
 }
 
-async function listWhatsAppContacts(env: Env): Promise<WhatsAppContact[]> {
+export async function listWhatsAppContacts(env: Env): Promise<WhatsAppContact[]> {
   try {
     const result = await request(env, "/user/my/contacts");
     const data = Array.isArray(result?.results?.data) ? result.results.data : [];
     return data.map((contact: any) => ({
       jid: clean(contact.jid, 240),
-      name: contactName(contact.name),
+      name: contactName(contact),
     })).filter((contact: WhatsAppContact) => contact.jid && contact.name);
   } catch {
     // Contact enrichment is best effort. Chat access must keep working against
     // older GOWA releases that do not expose the contact endpoint.
     return [];
   }
+}
+
+function normalizedLookup(value: unknown): string {
+  return clean(value, 500).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
+}
+
+function lookupScore(name: string, jid: string, query: string): number {
+  const normalizedName = normalizedLookup(name);
+  const normalizedJid = normalizedLookup(jid.split("@")[0]);
+  if (!query) return 0;
+  if (normalizedName === query) return 0;
+  if (normalizedName.startsWith(query)) return 1;
+  if (normalizedName.split(" ").some((word) => word.startsWith(query))) return 2;
+  if (normalizedName.includes(query)) return 3;
+  if (normalizedJid.includes(query)) return 4;
+  return Number.POSITIVE_INFINITY;
 }
 
 function resolvedContactName(jid: string, storedName: unknown, contacts: Map<string, string>): string {
@@ -125,16 +149,26 @@ export async function listWhatsAppChats(env: Env, options: { limit?: number; off
   ]);
   const data = Array.isArray(result?.results?.data) ? result.results.data : [];
   const contacts = new Map(contactRows.map((contact) => [contact.jid, contact.name]));
-  const normalizedSearch = search.toLocaleLowerCase();
-  const chats = data.map((chat: any) => {
+  const normalizedSearch = normalizedLookup(search);
+  const chatRows = data.map((chat: any) => {
     const jid = clean(chat.jid, 240);
     return {
       jid,
       name: resolvedContactName(jid, chat.name, contacts),
       lastMessageAt: clean(chat.last_message_time, 80),
       archived: Boolean(chat.archived),
+      contactOnly: false,
     };
-  }).filter((chat: any) => chat.jid && (!normalizedSearch || `${chat.name} ${chat.jid}`.toLocaleLowerCase().includes(normalizedSearch)));
+  }).filter((chat: any) => chat.jid);
+  const chatJids = new Set(chatRows.map((chat: any) => chat.jid));
+  const contactMatches = normalizedSearch ? contactRows
+    .filter((contact) => !chatJids.has(contact.jid) && Number.isFinite(lookupScore(contact.name, contact.jid, normalizedSearch)))
+    .map((contact) => ({ jid: contact.jid, name: contact.name, lastMessageAt: "", archived: false, contactOnly: true })) : [];
+  const chats = [...chatRows, ...contactMatches]
+    .filter((chat: any) => !normalizedSearch || Number.isFinite(lookupScore(chat.name, chat.jid, normalizedSearch)))
+    .sort((left: any, right: any) => normalizedSearch
+      ? lookupScore(left.name, left.jid, normalizedSearch) - lookupScore(right.name, right.jid, normalizedSearch)
+      : 0);
   return {
     chats: search ? chats.slice(requestedOffset, requestedOffset + requestedLimit) : chats,
     pagination: search
@@ -143,9 +177,19 @@ export async function listWhatsAppChats(env: Env, options: { limit?: number; off
   };
 }
 
+export async function resolveWhatsAppRecipient(env: Env, value: unknown) {
+  const query = clean(value, 300);
+  if (!query) return { match: null, candidates: [] as Array<{ jid: string; name: string }> };
+  const result = await listWhatsAppChats(env, { search: query, limit: 25 });
+  const candidates = result.chats.map(({ jid, name }) => ({ jid, name }));
+  const normalized = normalizedLookup(query);
+  const exact = candidates.filter((candidate) => normalizedLookup(candidate.name) === normalized || normalizedLookup(candidate.jid.split("@")[0]) === normalized);
+  return { match: exact.length === 1 ? exact[0] : exact.length === 0 && candidates.length === 1 ? candidates[0] : null, candidates };
+}
+
 function validJid(value: unknown): string {
   const jid = clean(value, 240);
-  if (!/^[0-9A-Za-z._:-]+@(s\.whatsapp\.net|g\.us|broadcast)$/.test(jid)) throw new WhatsAppError("Invalid WhatsApp chat", 400);
+  if (!/^[0-9A-Za-z._:-]+@(s\.whatsapp\.net|lid|g\.us|broadcast)$/.test(jid)) throw new WhatsAppError("Invalid WhatsApp chat", 400);
   return jid;
 }
 

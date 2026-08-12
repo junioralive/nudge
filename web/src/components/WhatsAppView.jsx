@@ -75,7 +75,7 @@ export default function WhatsAppView() {
       <div className="whatsapp-list">
         {loading ? Array.from({ length: 7 }, (_, index) => <div className="whatsapp-chat skeleton" key={index}><i /><span /><small /></div>)
           : chats.length ? chats.map((chat) => <button className="whatsapp-chat" key={chat.jid} onClick={() => openChat(chat)}>
-            <i>{chat.name.slice(0, 1).toUpperCase()}</i><span><strong>{chat.name}</strong><small>{chat.archived ? "Archived" : chat.jid.endsWith("@g.us") ? "Group" : "WhatsApp"}</small></span><time>{time(chat.lastMessageAt)}</time>
+            <i>{chat.name.slice(0, 1).toUpperCase()}</i><span><strong>{chat.name}</strong><small>{chat.contactOnly ? "Contact" : chat.archived ? "Archived" : chat.jid.endsWith("@g.us") ? "Group" : "WhatsApp"}</small></span><time>{time(chat.lastMessageAt)}</time>
           </button>) : <div className="whatsapp-empty">No chats found.</div>}
       </div>
     </> : <div className="whatsapp-conversation">

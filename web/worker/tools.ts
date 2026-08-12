@@ -4,12 +4,12 @@ import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain
 import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
-import { getWhatsAppMessages, listWhatsAppChats } from "./whatsapp";
+import { getWhatsAppMessages, listWhatsAppChats, resolveWhatsAppRecipient } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
   {
     name: "list_whatsapp_chats",
-    description: "List WhatsApp chat names and timestamps. Use only when the user explicitly asks about WhatsApp or a chat must be selected. This does not read message bodies.",
+    description: "Search WhatsApp chats and synced contacts by saved name or phone number. Results can include contacts with no recent conversation. Use only when the user explicitly asks about WhatsApp or a recipient must be selected. This does not read message bodies.",
     parameters: {
       type: Type.OBJECT,
       properties: { search: { type: Type.STRING }, limit: { type: Type.NUMBER } },
@@ -30,7 +30,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
     parameters: {
       type: Type.OBJECT,
       properties: { jid: { type: Type.STRING }, recipient: { type: Type.STRING }, message: { type: Type.STRING } },
-      required: ["jid", "message"],
+      required: ["message"],
     },
   },
   {
@@ -258,8 +258,21 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
   }
   if (name === "prepare_whatsapp_message") {
-    if (!args.jid || !args.message?.trim()) return { ok: false, error: "chat and message are required" };
-    return { ok: true, requires_confirmation: true, draft: { jid: String(args.jid).slice(0, 240), recipient: String(args.recipient || "").slice(0, 300), message: String(args.message).slice(0, 10_000) } };
+    if (!args.message?.trim()) return { ok: false, error: "message is required" };
+    let jid = String(args.jid || "").slice(0, 240);
+    let recipient = String(args.recipient || "").slice(0, 300);
+    if (!jid && recipient) {
+      try {
+        const resolved = await resolveWhatsAppRecipient(env, recipient);
+        if (!resolved.match) return { ok: false, error: resolved.candidates.length ? "Recipient is ambiguous" : "WhatsApp contact not found", candidates: resolved.candidates };
+        jid = resolved.match.jid;
+        recipient = resolved.match.name;
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" };
+      }
+    }
+    if (!jid) return { ok: false, error: "recipient or chat is required" };
+    return { ok: true, requires_confirmation: true, draft: { jid, recipient, message: String(args.message).slice(0, 10_000) } };
   }
   if (name === "list_calendar_events") {
     try {

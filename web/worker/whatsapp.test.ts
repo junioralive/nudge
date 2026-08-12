@@ -58,4 +58,24 @@ describe("WhatsApp adapter", () => {
     await expect(listWhatsAppChats(env())).resolves.toMatchObject({ chats: [{ name: "918888888888" }] });
     fetchMock.mockRestore();
   });
+
+  it("finds a synced contact without a recent chat", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/user/my/contacts")) {
+        return new Response(JSON.stringify({ results: { data: [{ jid: "919777777777@s.whatsapp.net", FullName: "Ayan Khan" }] } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ results: { data: [] } }), { status: 200 });
+    });
+
+    await expect(listWhatsAppChats(env(), { search: "Ayan" })).resolves.toMatchObject({
+      chats: [{ jid: "919777777777@s.whatsapp.net", name: "Ayan Khan", contactOnly: true }],
+      pagination: { total: 1 },
+    });
+    fetchMock.mockRestore();
+  });
+
+  it("accepts synced Linked ID recipients", async () => {
+    await expect(createWhatsAppApproval(env(), { jid: "123456789@lid", message: "Hello" })).resolves.toContain(".");
+  });
 });
