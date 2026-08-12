@@ -40,10 +40,12 @@
   ],
   "kv_namespaces": [
     {
-      "binding": "EMAIL_KV"
+      "binding": "EMAIL_KV",
+      "id": "4d55b584f60d46989822d9ae9eaa4470"
     },
     {
-      "binding": "MEMORY_CONFIG_KV"
+      "binding": "MEMORY_CONFIG_KV",
+      "id": "3e7ebd2b1f15463d915fef8da1b36ade"
     }
   ],
   "vectorize": [
