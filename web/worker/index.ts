@@ -68,6 +68,16 @@ import { sealJson } from "./email-core/crypto";
 import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./integrationSecrets";
 import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
 import { addCalendarSource, deleteCalendarSource, listCalendarEvents, listCalendarSources, syncCalendarSource } from "./calendar";
+import {
+  consumeWhatsAppApproval,
+  createWhatsAppApproval,
+  getWhatsAppMessages,
+  getWhatsAppStatus,
+  listWhatsAppChats,
+  sendWhatsAppMessage,
+  whatsappConfigured,
+  WhatsAppError,
+} from "./whatsapp";
 
 const app = new Hono<AppBindings>();
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -200,6 +210,7 @@ app.get("/api/health", async (c) => {
 app.get("/api/capabilities", async (c) => {
   const gemini = await loadIntegrationSecret(c.env, "gemini");
   const microsoft = await loadIntegrationSecret(c.env, "microsoft");
+  const resolvedEnv = await runtimeEnv(c.env);
   return c.json({
   gemini: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY),
   secondBrain: memoriesConfigured(c.env),
@@ -209,7 +220,56 @@ app.get("/api/capabilities", async (c) => {
   email: emailConfigured(c.env),
   calendar: Boolean(integrationEncryptionKey(c.env)),
   outlook: outlookConfigured(c.env) || Boolean(microsoft?.clientId && microsoft?.clientSecret),
+  whatsapp: whatsappConfigured(resolvedEnv),
   });
+});
+
+function whatsappErrorResponse(c: any, error: unknown) {
+  const status = error instanceof WhatsAppError ? error.status : 502;
+  return c.json({ error: error instanceof WhatsAppError ? error.message : "WhatsApp service unavailable" }, status);
+}
+
+app.get("/api/whatsapp/status", async (c) => {
+  const env = await runtimeEnv(c.env);
+  if (!whatsappConfigured(env)) return c.json({ configured: false, connected: false, loggedIn: false });
+  try { return c.json(await getWhatsAppStatus(env)); }
+  catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.get("/api/whatsapp/chats", async (c) => {
+  try {
+    const env = await runtimeEnv(c.env);
+    return c.json(await listWhatsAppChats(env, {
+      limit: Number(c.req.query("limit")), offset: Number(c.req.query("offset")), search: c.req.query("search"),
+    }));
+  } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.get("/api/whatsapp/chats/:jid/messages", async (c) => {
+  try {
+    const env = await runtimeEnv(c.env);
+    return c.json(await getWhatsAppMessages(env, c.req.param("jid"), {
+      limit: Number(c.req.query("limit")), offset: Number(c.req.query("offset")),
+    }));
+  } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.post("/api/whatsapp/messages/prepare", async (c) => {
+  const body = await jsonBody<{ jid?: string; message?: string; replyMessageId?: string }>(c);
+  if (!body.jid || !cleanText(body.message, 10_000)) return c.json({ error: "chat and message are required" }, 400);
+  try {
+    return c.json({ requiresConfirmation: true, approval: await createWhatsAppApproval(c.env, { jid: body.jid, message: body.message, replyMessageId: body.replyMessageId }), preview: { jid: body.jid, message: cleanText(body.message, 10_000) } });
+  } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.post("/api/whatsapp/messages/send", async (c) => {
+  if (c.req.header("X-Confirm-Send") !== "true") return c.json({ error: "send confirmation required" }, 409);
+  const body = await jsonBody<{ approval?: string }>(c);
+  if (!body.approval) return c.json({ error: "approval is required" }, 400);
+  try {
+    const env = await runtimeEnv(c.env);
+    return c.json(await sendWhatsAppMessage(env, await consumeWhatsAppApproval(c.env, body.approval)));
+  } catch (error) { return whatsappErrorResponse(c, error); }
 });
 
 function emailErrorResponse(c: any, error: unknown) {
@@ -608,7 +668,7 @@ app.post("/api/onboarding/reset", async (c) => {
 
 app.post("/api/integrations/:provider", async (c) => {
   const provider = cleanText(c.req.param("provider"), 40).toLowerCase();
-  if (!["gemini", "microsoft"].includes(provider)) return c.json({ error: "unsupported integration" }, 400);
+  if (!["gemini", "microsoft", "whatsapp"].includes(provider)) return c.json({ error: "unsupported integration" }, 400);
   const key = integrationEncryptionKey(c.env);
   if (!key) return c.json({ error: "encryption is not configured" }, 503);
   const body = await jsonBody<Record<string, unknown>>(c);
@@ -624,13 +684,15 @@ app.delete("/api/integrations/:provider", async (c) => {
 });
 
 app.get("/api/integrations", async (c) => {
-  const [gemini, microsoft] = await Promise.all([
+  const [gemini, microsoft, whatsapp] = await Promise.all([
     loadIntegrationSecret(c.env, "gemini"),
     loadIntegrationSecret(c.env, "microsoft"),
+    loadIntegrationSecret(c.env, "whatsapp"),
   ]);
   return c.json({
     gemini: { configured: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY) },
     microsoft: { configured: Boolean((microsoft?.clientId || c.env.OUTLOOK_CLIENT_ID) && (microsoft?.clientSecret || c.env.OUTLOOK_CLIENT_SECRET)) },
+    whatsapp: { configured: Boolean((whatsapp?.baseUrl || c.env.WHATSAPP_BASE_URL) && (whatsapp?.password || c.env.WHATSAPP_PASSWORD) && (whatsapp?.deviceId || c.env.WHATSAPP_DEVICE_ID)) },
   });
 });
 
@@ -878,7 +940,9 @@ Memories is durable personal context. Use recall_memory when an answer depends o
 
 Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.
 
-Calendar is read-only operational schedule data. Use list_calendar_events when the user asks about meetings, events, availability, or their schedule. Always pass an explicit date range resolved in the user's timezone. Calendar events are not tasks or Memories; never save or modify them unless the user separately asks to create a Nudge task or remember a durable fact.`;
+Calendar is read-only operational schedule data. Use list_calendar_events when the user asks about meetings, events, availability, or their schedule. Always pass an explicit date range resolved in the user's timezone. Calendar events are not tasks or Memories; never save or modify them unless the user separately asks to create a Nudge task or remember a durable fact.
+
+WhatsApp is private operational data. Use WhatsApp tools only when the user explicitly asks about WhatsApp, a specific chat, or composing a message. Listing chats does not permit reading messages. Read a chat only after explicit intent. You may prepare a message for visible review, but never send it yourself. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
 }
 
 app.post("/api/voice-token", async (c) => {
@@ -948,7 +1012,7 @@ app.post("/api/voice/tool", async (c) => {
   }
   const body = await jsonBody<{ name?: string; args?: Record<string, unknown> }>(c);
   if (!body.name) return c.json({ error: "name is required" }, 400);
-  return c.json({ result: await runTool(c.env, body.name, body.args || {}) });
+  return c.json({ result: await runTool(await runtimeEnv(c.env), body.name, body.args || {}) });
 });
 
 app.onError((error, c) => {

@@ -1,11 +1,11 @@
-import { AudioLines, Bell, Brain, CalendarDays, Home, Mail, Plus, Puzzle, X } from "lucide-react";
+import { AudioLines, Bell, Brain, CalendarDays, Home, Mail, MessageCircle, Plus, Puzzle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onNavigate, onTalk, voiceOpen }) {
   const [pluginsOpen, setPluginsOpen] = useState(false);
 
   useEffect(() => {
-    if (!view.startsWith("memories") && !view.startsWith("email")) setPluginsOpen(false);
+    if (!view.startsWith("memories") && !view.startsWith("email") && view !== "whatsapp") setPluginsOpen(false);
   }, [view]);
 
   function navigate(target) {
@@ -31,6 +31,7 @@ export default function BottomNav({ capabilities = {}, onAdd, addOpen, view, onN
           {capabilities.secondBrain && <button className={view.startsWith("memories") ? "active" : ""} onClick={() => navigate("memories-overview")} aria-label="Memories"><Brain size={18} /></button>}
           {talkButton}
           {capabilities.email && <button className={view.startsWith("email") ? "active" : ""} onClick={() => navigate("email-inbox")} aria-label="Email"><Mail size={18} /></button>}
+          {capabilities.whatsapp && <button className={view === "whatsapp" ? "active" : ""} onClick={() => navigate("whatsapp")} aria-label="WhatsApp"><MessageCircle size={18} /></button>}
         </> : <>
           <button className={view === "home" ? "active" : ""} onClick={() => navigate("home")} aria-label="Home"><Home size={19} /></button>
           <button className={view === "calendar" ? "active" : ""} onClick={() => navigate("calendar")} aria-label="Calendar"><CalendarDays size={19} /></button>

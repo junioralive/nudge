@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Brain, Check, Download, KeyRound, LoaderCircle, Mail, Mic2, Plug, ShieldCheck, UserRound, Volume2, X } from "lucide-react";
+import { BellRing, Brain, Check, Download, KeyRound, LoaderCircle, Mail, MessageCircle, Mic2, Plug, ShieldCheck, UserRound, Volume2, X } from "lucide-react";
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
@@ -18,9 +18,10 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [section, setSection] = useState("profile");
-  const [integrations, setIntegrations] = useState({ gemini: { configured: capabilities.gemini }, microsoft: { configured: capabilities.outlook } });
+  const [integrations, setIntegrations] = useState({ gemini: { configured: capabilities.gemini }, microsoft: { configured: capabilities.outlook }, whatsapp: { configured: capabilities.whatsapp } });
   const [geminiKey, setGeminiKey] = useState("");
   const [microsoft, setMicrosoft] = useState({ clientId: "", clientSecret: "", tenant: "organizations" });
+  const [whatsapp, setWhatsapp] = useState({ baseUrl: "", username: "", password: "", deviceId: "" });
   const [recoveryKey, setRecoveryKey] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryReauthUrl, setRecoveryReauthUrl] = useState("");
@@ -142,12 +143,13 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
   async function configureIntegration(provider) {
     setSaving(true); setStatus("");
     try {
-      const values = provider === "gemini" ? { apiKey: geminiKey } : microsoft;
+      const values = provider === "gemini" ? { apiKey: geminiKey } : provider === "microsoft" ? microsoft : whatsapp;
       await saveIntegration(provider, values);
       setIntegrations((current) => ({ ...current, [provider]: { configured: true } }));
       if (provider === "gemini") setGeminiKey("");
-      else setMicrosoft({ clientId: "", clientSecret: "", tenant: microsoft.tenant });
-      setStatus(`${provider === "gemini" ? "Gemini" : "Microsoft"} connected`);
+      else if (provider === "microsoft") setMicrosoft({ clientId: "", clientSecret: "", tenant: microsoft.tenant });
+      else setWhatsapp({ baseUrl: "", username: "", password: "", deviceId: "" });
+      setStatus(`${provider === "gemini" ? "Gemini" : provider === "microsoft" ? "Microsoft" : "WhatsApp"} connected`);
     } catch (error) { setStatus(error.message || "Could not save integration"); }
     finally { setSaving(false); }
   }
@@ -157,7 +159,7 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
     try {
       await removeIntegration(provider);
       setIntegrations((current) => ({ ...current, [provider]: { configured: false } }));
-      setStatus(`${provider === "gemini" ? "Gemini" : "Microsoft"} removed`);
+      setStatus(`${provider === "gemini" ? "Gemini" : provider === "microsoft" ? "Microsoft" : "WhatsApp"} removed`);
     } catch (error) { setStatus(error.message || "Could not remove integration"); }
     finally { setSaving(false); }
   }
@@ -222,6 +224,7 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
             <div className="capability-row"><span><strong>Memories</strong><small>Built-in durable context and semantic recall</small></span><b className={capabilities.secondBrain ? "ready" : "off"}>{capabilities.secondBrain ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
             <div className="capability-row"><span><strong>Push notifications</strong><small>Due-time reminders on registered devices</small></span><b className={capabilities.push ? "ready" : "off"}>{capabilities.push ? <><Check size={13} /> Ready</> : "Not configured"}</b></div>
             <div className="capability-row"><span><strong>Email assistant</strong><small>Private, on-demand access to connected inboxes</small></span><b className={capabilities.email ? "ready" : "off"}>{capabilities.email ? <><Mail size={13} /> Ready</> : "Not configured"}</b></div>
+            <div className="capability-row"><span><strong>WhatsApp assistant</strong><small>Private, on-demand chats through your bridge</small></span><b className={capabilities.whatsapp ? "ready" : "off"}>{capabilities.whatsapp ? <><MessageCircle size={13} /> Ready</> : "Not configured"}</b></div>
           </div>
         </article>}
 
@@ -233,6 +236,15 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
               <p>Enables live voice conversations and voice previews.</p>
               <label className="settings-field"><span>API key</span><input type="password" autoComplete="off" value={geminiKey} onChange={(event) => setGeminiKey(event.target.value)} placeholder={integrations.gemini?.configured ? "Enter a new key to replace it" : "Google AI Studio API key"} /></label>
               <div className="integration-settings-actions"><button type="button" onClick={() => configureIntegration("gemini")} disabled={saving || !geminiKey.trim()}>Save Gemini</button>{integrations.gemini?.configured && <button type="button" className="settings-secondary-btn" onClick={() => disconnectIntegration("gemini")} disabled={saving}>Remove</button>}</div>
+            </section>
+            <section className="integration-settings-card">
+              <div className="integration-settings-head"><span><MessageCircle size={16} /><strong>WhatsApp bridge</strong></span><b className={integrations.whatsapp?.configured ? "ready" : "off"}>{integrations.whatsapp?.configured ? "Connected" : "Optional"}</b></div>
+              <p>Connects Nudge to a private GOWA bridge. Credentials remain encrypted.</p>
+              <label className="settings-field"><span>Bridge URL</span><input type="url" autoComplete="off" value={whatsapp.baseUrl} onChange={(event) => setWhatsapp({ ...whatsapp, baseUrl: event.target.value })} placeholder="https://whatsapp.example.com" /></label>
+              <label className="settings-field"><span>Username</span><input autoComplete="off" value={whatsapp.username} onChange={(event) => setWhatsapp({ ...whatsapp, username: event.target.value })} placeholder="nudge" /></label>
+              <label className="settings-field"><span>Password</span><input type="password" autoComplete="off" value={whatsapp.password} onChange={(event) => setWhatsapp({ ...whatsapp, password: event.target.value })} placeholder={integrations.whatsapp?.configured ? "Enter all values to replace connection" : "Bridge Basic Auth password"} /></label>
+              <label className="settings-field"><span>Device ID</span><input autoComplete="off" value={whatsapp.deviceId} onChange={(event) => setWhatsapp({ ...whatsapp, deviceId: event.target.value })} placeholder="GOWA device ID" /></label>
+              <div className="integration-settings-actions"><button type="button" onClick={() => configureIntegration("whatsapp")} disabled={saving || !whatsapp.baseUrl.trim() || !whatsapp.username.trim() || !whatsapp.password.trim() || !whatsapp.deviceId.trim()}>Save WhatsApp</button>{integrations.whatsapp?.configured && <button type="button" className="settings-secondary-btn" onClick={() => disconnectIntegration("whatsapp")} disabled={saving}>Remove</button>}</div>
             </section>
             <section className="integration-settings-card">
               <div className="integration-settings-head"><span><Mail size={16} /><strong>Microsoft Outlook</strong></span><b className={integrations.microsoft?.configured ? "ready" : "off"}>{integrations.microsoft?.configured ? "Connected" : "Optional"}</b></div>

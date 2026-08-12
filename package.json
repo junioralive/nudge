@@ -73,6 +73,18 @@
       },
       "OUTLOOK_TENANT": {
         "description": "Optional Microsoft tenant: consumers, organizations, common, or a tenant ID."
+      },
+      "WHATSAPP_BASE_URL": {
+        "description": "Optional private GOWA bridge URL. Prefer configuring WhatsApp after login in Settings."
+      },
+      "WHATSAPP_USERNAME": {
+        "description": "Optional GOWA Basic Auth username. Stored encrypted when entered in Settings."
+      },
+      "WHATSAPP_PASSWORD": {
+        "description": "Optional GOWA Basic Auth password. Stored encrypted when entered in Settings."
+      },
+      "WHATSAPP_DEVICE_ID": {
+        "description": "Optional GOWA linked device ID. Stored encrypted when entered in Settings."
       }
     }
   }

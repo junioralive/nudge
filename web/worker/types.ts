@@ -31,6 +31,10 @@ export interface Env {
   OUTLOOK_CLIENT_SECRET?: string;
   OUTLOOK_TENANT?: string;
   NUDGE_ACTION_SIGNING_SECRET?: string;
+  WHATSAPP_BASE_URL?: string;
+  WHATSAPP_USERNAME?: string;
+  WHATSAPP_PASSWORD?: string;
+  WHATSAPP_DEVICE_ID?: string;
 }
 
 export interface TaskRow {

@@ -19,9 +19,10 @@ export async function loadIntegrationSecret(env: Env, provider: string): Promise
 }
 
 export async function runtimeEnv(env: Env): Promise<Env> {
-  const [gemini, microsoft] = await Promise.all([
+  const [gemini, microsoft, whatsapp] = await Promise.all([
     loadIntegrationSecret(env, "gemini"),
     loadIntegrationSecret(env, "microsoft"),
+    loadIntegrationSecret(env, "whatsapp"),
   ]);
   return {
     ...env,
@@ -29,5 +30,9 @@ export async function runtimeEnv(env: Env): Promise<Env> {
     OUTLOOK_CLIENT_ID: microsoft?.clientId || env.OUTLOOK_CLIENT_ID,
     OUTLOOK_CLIENT_SECRET: microsoft?.clientSecret || env.OUTLOOK_CLIENT_SECRET,
     OUTLOOK_TENANT: microsoft?.tenant || env.OUTLOOK_TENANT,
+    WHATSAPP_BASE_URL: whatsapp?.baseUrl || env.WHATSAPP_BASE_URL,
+    WHATSAPP_USERNAME: whatsapp?.username || env.WHATSAPP_USERNAME,
+    WHATSAPP_PASSWORD: whatsapp?.password || env.WHATSAPP_PASSWORD,
+    WHATSAPP_DEVICE_ID: whatsapp?.deviceId || env.WHATSAPP_DEVICE_ID,
   };
 }

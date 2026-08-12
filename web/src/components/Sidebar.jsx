@@ -1,4 +1,4 @@
-import { AudioLines, Home, Bell, CalendarDays, Plus, Check, Brain, Mail } from "lucide-react";
+import { AudioLines, Home, Bell, CalendarDays, Plus, Check, Brain, Mail, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import Logo from "./Logo.jsx";
 import ProfileMenu from "./ProfileMenu.jsx";
@@ -63,6 +63,7 @@ export default function Sidebar({
         </button>
         {capabilities.secondBrain && <button className={view.startsWith("memories") ? "active" : ""} onClick={() => onNavigate("memories-overview")}><Brain size={16} /> Memories</button>}
         {capabilities.email && <button className={view.startsWith("email") ? "active" : ""} onClick={() => onNavigate("email-inbox")}><Mail size={16} /> Email</button>}
+        {capabilities.whatsapp && <button className={view === "whatsapp" ? "active" : ""} onClick={() => onNavigate("whatsapp")}><MessageCircle size={16} /> WhatsApp</button>}
       </nav>
 
       <div className="sidebar-section-label">Workspaces</div>

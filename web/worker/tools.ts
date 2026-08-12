@@ -4,8 +4,35 @@ import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain
 import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
+import { getWhatsAppMessages, listWhatsAppChats } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "list_whatsapp_chats",
+    description: "List WhatsApp chat names and timestamps. Use only when the user explicitly asks about WhatsApp or a chat must be selected. This does not read message bodies.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { search: { type: Type.STRING }, limit: { type: Type.NUMBER } },
+    },
+  },
+  {
+    name: "read_whatsapp_chat",
+    description: "Read recent messages from one selected WhatsApp chat. Use only after an explicit request to open, read, summarize, or answer from that chat.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { jid: { type: Type.STRING }, limit: { type: Type.NUMBER } },
+      required: ["jid"],
+    },
+  },
+  {
+    name: "prepare_whatsapp_message",
+    description: "Prepare a WhatsApp message for visible user review. This never sends. The user must confirm sending in the Nudge WhatsApp screen.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { jid: { type: Type.STRING }, recipient: { type: Type.STRING }, message: { type: Type.STRING } },
+      required: ["jid", "message"],
+    },
+  },
   {
     name: "list_calendar_events",
     description: "List read-only calendar meetings and events in an explicit date range. Use when the user asks about their schedule, meetings, availability, or calendar. Calendar events are not tasks or memories.",
@@ -222,6 +249,18 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "list_whatsapp_chats") {
+    try { return await listWhatsAppChats(env, { search: args.search, limit: Math.min(Number(args.limit) || 10, 25) }); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
+  if (name === "read_whatsapp_chat") {
+    try { return await getWhatsAppMessages(env, args.jid, { limit: Math.min(Number(args.limit) || 20, 50) }); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
+  if (name === "prepare_whatsapp_message") {
+    if (!args.jid || !args.message?.trim()) return { ok: false, error: "chat and message are required" };
+    return { ok: true, requires_confirmation: true, draft: { jid: String(args.jid).slice(0, 240), recipient: String(args.recipient || "").slice(0, 300), message: String(args.message).slice(0, 10_000) } };
+  }
   if (name === "list_calendar_events") {
     try {
       const events = await listCalendarEvents(env, { from: String(args.from || ""), to: String(args.to || "") });

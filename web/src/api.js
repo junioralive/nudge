@@ -37,6 +37,23 @@ export function login(key) {
 }
 export function fetchCapabilities() { return apiFetch("/api/capabilities"); }
 
+export function fetchWhatsAppStatus() { return apiFetch("/api/whatsapp/status"); }
+export function fetchWhatsAppChats(search = "", limit = 50, offset = 0) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (search.trim()) params.set("search", search.trim());
+  return apiFetch(`/api/whatsapp/chats?${params}`);
+}
+export function fetchWhatsAppMessages(jid, limit = 50, offset = 0) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiFetch(`/api/whatsapp/chats/${encodeURIComponent(jid)}/messages?${params}`);
+}
+export function prepareWhatsAppMessage(jid, message, replyMessageId = "") {
+  return apiFetch("/api/whatsapp/messages/prepare", { method: "POST", body: JSON.stringify({ jid, message, replyMessageId }) });
+}
+export function sendWhatsAppMessage(approval) {
+  return apiFetch("/api/whatsapp/messages/send", { method: "POST", headers: { "X-Confirm-Send": "true" }, body: JSON.stringify({ approval }) });
+}
+
 export function fetchCalendarSources() { return apiFetch("/api/calendar/sources"); }
 export function addCalendarSource(values) { return apiFetch("/api/calendar/sources", { method: "POST", body: JSON.stringify(values) }); }
 export function syncCalendarSource(id) { return apiFetch(`/api/calendar/sources/${encodeURIComponent(id)}/sync`, { method: "POST" }); }

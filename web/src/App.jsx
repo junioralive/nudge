@@ -52,6 +52,7 @@ import { ASSISTANT_VOICES } from "./voice/voiceCatalog.js";
 const VoicePanel = lazy(() => import("./components/VoicePanel.jsx"));
 const MemoriesView = lazy(() => import("./components/MemoriesView.jsx"));
 const EmailView = lazy(() => import("./components/EmailView.jsx"));
+const WhatsAppView = lazy(() => import("./components/WhatsAppView.jsx"));
 
 function isToday(dueAt) {
   if (!dueAt) return false;
@@ -103,7 +104,7 @@ export default function App() {
 function NudgeApp({ authMode, onLogout }) {
   const [tasks, setTasks] = useState([]);
   const [pushStatus, setPushStatus] = useState({ state: "loading", detail: "Checking this device…" });
-  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false, outlook: false });
+  const [capabilities, setCapabilities] = useState({ gemini: true, secondBrain: true, email: false, outlook: false, whatsapp: false });
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("today");
   const [sortByDue, setSortByDue] = useState(true);
@@ -381,6 +382,7 @@ function NudgeApp({ authMode, onLogout }) {
               onTestNotification={handleTestNotification} onRetryNotifications={handleRetryNotifications} />
           : view.startsWith("memories") ? <Suspense fallback={<div className="empty">Opening Memories…</div>}><MemoriesView activeWorkspace={activeWorkspace} section={view.split("-")[1] || "overview"} onSectionChange={(section) => setView(`memories-${section}`)} /></Suspense>
           : view.startsWith("email") ? <Suspense fallback={<div className="empty">Opening email…</div>}><EmailView workspaces={workspaces} defaultWorkspace={defaultWorkspace} onTaskCreated={refresh} outlookConfigured={capabilities.outlook} accountsInitiallyOpen={view === "email-accounts"} /></Suspense>
+          : view === "whatsapp" ? <Suspense fallback={<div className="empty">Opening WhatsApp…</div>}><WhatsAppView /></Suspense>
           : view === "settings" ? <SettingsView authMode={authMode} profile={profile} capabilities={{ ...capabilities, push: pushEnabled }} onSave={handleSettingsSave} onRestartOnboarding={restartOnboarding} onClose={() => setView("home")} />
           : <>
             <div className="toolbar"><div className="search-row"><SearchBar value={query} onChange={setQuery} />
