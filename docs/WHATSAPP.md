@@ -98,6 +98,8 @@ The in-app Settings flow is preferred because it is easier to replace or remove 
 
 Approvals expire after ten minutes and cannot be replayed. Nudge does not poll WhatsApp in the background, run WhatsApp from Cron, save chats to D1, cache message bodies in the service worker, or add messages to Memories automatically. There is no WhatsApp MCP endpoint in this release.
 
+Nudge resolves one-to-one chat labels from GOWA's synced contact directory before falling back to GOWA's stored chat name or phone number. Contact-name search uses the same resolved names, including assistant requests such as “message Mrs Junior.” Rename contacts on the phone and allow GOWA to sync them; Nudge does not maintain a separate address book.
+
 ## Troubleshooting
 
 ### WhatsApp does not appear
@@ -119,6 +121,10 @@ Verify the public hostname from a network outside the VPS. Check DNS, the TLS ce
 ### Chats are empty
 
 Confirm the configured device ID belongs to the linked account. If GOWA was newly linked, allow its initial sync to finish and verify chats appear in the GOWA dashboard first.
+
+### Phone numbers appear instead of contact names
+
+Update GOWA to a current release, confirm `/user/my/contacts` returns the saved contact, and allow the linked device to finish contact synchronization. Nudge falls back to a phone number when GOWA has no saved, push, or business name for that JID.
 
 ## Provider warning
 

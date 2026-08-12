@@ -79,23 +79,67 @@ export async function getWhatsAppStatus(env: Env) {
   return { configured: true, connected: Boolean(value?.connected), loggedIn: Boolean(value?.logged_in), deviceId: clean(value?.device_id, 160) };
 }
 
+interface WhatsAppContact {
+  jid: string;
+  name: string;
+}
+
+function contactName(value: unknown): string {
+  return clean(value, 300);
+}
+
+async function listWhatsAppContacts(env: Env): Promise<WhatsAppContact[]> {
+  try {
+    const result = await request(env, "/user/my/contacts");
+    const data = Array.isArray(result?.results?.data) ? result.results.data : [];
+    return data.map((contact: any) => ({
+      jid: clean(contact.jid, 240),
+      name: contactName(contact.name),
+    })).filter((contact: WhatsAppContact) => contact.jid && contact.name);
+  } catch {
+    // Contact enrichment is best effort. Chat access must keep working against
+    // older GOWA releases that do not expose the contact endpoint.
+    return [];
+  }
+}
+
+function resolvedContactName(jid: string, storedName: unknown, contacts: Map<string, string>): string {
+  const saved = contacts.get(jid);
+  if (saved) return saved;
+  return contactName(storedName) || jid.split("@")[0];
+}
+
 export async function listWhatsAppChats(env: Env, options: { limit?: number; offset?: number; search?: string } = {}) {
-  const params = new URLSearchParams({
-    limit: String(Math.min(Math.max(Number(options.limit) || 30, 1), 100)),
-    offset: String(Math.max(Number(options.offset) || 0, 0)),
-  });
+  const requestedLimit = Math.min(Math.max(Number(options.limit) || 30, 1), 100);
+  const requestedOffset = Math.max(Number(options.offset) || 0, 0);
   const search = clean(options.search, 200);
-  if (search) params.set("search", search);
-  const result = await request(env, `/chats?${params}`);
+  const params = new URLSearchParams({
+    // When searching, fetch a full page and filter after contact enrichment so
+    // saved address-book names can match chats whose stored name is a number.
+    limit: String(search ? 100 : requestedLimit),
+    offset: String(search ? 0 : requestedOffset),
+  });
+  const [result, contactRows] = await Promise.all([
+    request(env, `/chats?${params}`),
+    listWhatsAppContacts(env),
+  ]);
   const data = Array.isArray(result?.results?.data) ? result.results.data : [];
-  return {
-    chats: data.map((chat: any) => ({
-      jid: clean(chat.jid, 240),
-      name: clean(chat.name, 300) || clean(chat.jid, 240).split("@")[0],
+  const contacts = new Map(contactRows.map((contact) => [contact.jid, contact.name]));
+  const normalizedSearch = search.toLocaleLowerCase();
+  const chats = data.map((chat: any) => {
+    const jid = clean(chat.jid, 240);
+    return {
+      jid,
+      name: resolvedContactName(jid, chat.name, contacts),
       lastMessageAt: clean(chat.last_message_time, 80),
       archived: Boolean(chat.archived),
-    })).filter((chat: any) => chat.jid),
-    pagination: result?.results?.pagination || { limit: Number(params.get("limit")), offset: Number(params.get("offset")), total: data.length },
+    };
+  }).filter((chat: any) => chat.jid && (!normalizedSearch || `${chat.name} ${chat.jid}`.toLocaleLowerCase().includes(normalizedSearch)));
+  return {
+    chats: search ? chats.slice(requestedOffset, requestedOffset + requestedLimit) : chats,
+    pagination: search
+      ? { limit: requestedLimit, offset: requestedOffset, total: chats.length }
+      : result?.results?.pagination || { limit: requestedLimit, offset: requestedOffset, total: chats.length },
   };
 }
 
@@ -111,13 +155,17 @@ export async function getWhatsAppMessages(env: Env, jidValue: unknown, options: 
     limit: String(Math.min(Math.max(Number(options.limit) || 50, 1), 100)),
     offset: String(Math.max(Number(options.offset) || 0, 0)),
   });
-  const result = await request(env, `/chat/${encodeURIComponent(jid)}/messages?${params}`);
+  const [result, contactRows] = await Promise.all([
+    request(env, `/chat/${encodeURIComponent(jid)}/messages?${params}`),
+    listWhatsAppContacts(env),
+  ]);
+  const contacts = new Map(contactRows.map((contact) => [contact.jid, contact.name]));
   const data = Array.isArray(result?.results?.data) ? result.results.data : [];
   return {
     chat: result?.results?.chat_info ? {
       jid,
-      name: clean(result.results.chat_info.name, 300) || jid.split("@")[0],
-    } : { jid, name: jid.split("@")[0] },
+      name: resolvedContactName(jid, result.results.chat_info.name, contacts),
+    } : { jid, name: resolvedContactName(jid, "", contacts) },
     messages: data.map((message: any) => ({
       id: clean(message.id, 300),
       sender: clean(message.sender_display_name, 300) || clean(message.sender_jid, 240).split("@")[0],

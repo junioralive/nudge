@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { consumeWhatsAppApproval, createWhatsAppApproval, whatsappConfig } from "./whatsapp";
+import { consumeWhatsAppApproval, createWhatsAppApproval, listWhatsAppChats, whatsappConfig } from "./whatsapp";
 import type { Env } from "./types";
 
 function env(): Env {
@@ -30,5 +30,32 @@ describe("WhatsApp adapter", () => {
 
   it("rejects arbitrary JIDs", async () => {
     await expect(createWhatsAppApproval(env(), { jid: "../../send/message", message: "Hello" })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("uses saved contact names for chat rows and search", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/user/my/contacts")) {
+        return new Response(JSON.stringify({ results: { data: [{ jid: "919999999999@s.whatsapp.net", name: "Mrs Junior" }] } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ results: { data: [{ jid: "919999999999@s.whatsapp.net", name: "919999999999", last_message_time: "2026-08-12T10:00:00Z" }] } }), { status: 200 });
+    });
+
+    await expect(listWhatsAppChats(env(), { search: "Mrs Junior" })).resolves.toMatchObject({
+      chats: [{ jid: "919999999999@s.whatsapp.net", name: "Mrs Junior" }],
+      pagination: { total: 1 },
+    });
+    fetchMock.mockRestore();
+  });
+
+  it("keeps chat listing available when contact enrichment fails", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/user/my/contacts")) return new Response("not found", { status: 404 });
+      return new Response(JSON.stringify({ results: { data: [{ jid: "918888888888@s.whatsapp.net", name: "918888888888" }] } }), { status: 200 });
+    });
+
+    await expect(listWhatsAppChats(env())).resolves.toMatchObject({ chats: [{ name: "918888888888" }] });
+    fetchMock.mockRestore();
   });
 });
