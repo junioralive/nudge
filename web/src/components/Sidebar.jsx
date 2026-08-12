@@ -45,6 +45,7 @@ export default function Sidebar({
         Nudge
       </div>
 
+      <div className="sidebar-scroll">
       <nav className="sidebar-nav">
         <button className={view === "home" ? "active" : ""} onClick={() => onNavigate("home")}>
           <Home size={16} /> Home
@@ -105,11 +106,14 @@ export default function Sidebar({
           </button>
         )}
       </div>
+      </div>
 
+      <div className="sidebar-footer">
       {capabilities.gemini && <button className="talk-nav-btn" onClick={onTalk}>
         <AudioLines size={16} /> Talk to Nudge
       </button>}
       <ProfileMenu name={name} detail={`${totalOpen} open · ${doneToday} done today`} onSettings={() => onNavigate("settings")} onLogout={onLogout} />
+      </div>
     </aside>
   );
 }

@@ -1313,13 +1313,31 @@ button {
   .sidebar {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 20px;
     width: 190px;
     flex-shrink: 0;
     height: calc(100vh - 80px);
     position: sticky;
     top: 40px;
   }
+
+  .sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+    overflow-x: visible;
+    padding: 2px 10px 14px 0;
+    margin-right: -10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(23,23,26,.16) transparent;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+  .sidebar-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(23,23,26,.16); }
+  .sidebar-footer { flex: 0 0 auto; display: grid; gap: 18px; padding-top: 4px; }
 
   .sidebar-brand {
     font-size: 17px;
@@ -2843,13 +2861,15 @@ button {
 .email-skeleton-row .date { width: 64px; justify-self: end; }
 @keyframes skeleton-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 
-.email-message-layer, .email-dialog-layer { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 22px; background: rgba(23,23,26,.28); backdrop-filter: blur(10px); animation: settings-backdrop-in .18s ease both; }
+.email-message-layer { min-height: 560px; display: flex; animation: fade-up .22s ease both; }
+.email-dialog-layer { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 22px; background: rgba(23,23,26,.28); backdrop-filter: blur(10px); animation: settings-backdrop-in .18s ease both; }
 .email-message-panel, .email-draft-dialog, .email-task-dialog { max-height: calc(100dvh - 44px); display: flex; flex-direction: column; overflow: hidden; border-radius: 23px; background: var(--surface); box-shadow: 0 24px 80px rgba(58,15,82,.18); animation: settings-dialog-in .22s cubic-bezier(.2,.8,.2,1) both; }
-.email-message-panel { width: min(1120px, calc(100vw - 48px)); height: min(820px, calc(100dvh - 44px)); }
+.email-message-panel { width: 100%; min-height: 560px; max-height: none; border-radius: 18px; box-shadow: var(--shadow-sm); animation: none; }
 .email-draft-dialog, .email-task-dialog { width: min(720px, 100%); }
 .floating-dialog-head { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 13px 8px 18px; }
 .floating-dialog-head > div { display: flex; align-items: center; gap: 9px; }
 .floating-dialog-head h2 { margin: 0; font-size: 17px; letter-spacing: -.025em; }
+.floating-dialog-head h2 + p { margin: 2px 0 0; color: var(--ink-soft); font-size: 9.5px; }
 .floating-dialog-head button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg); color: var(--ink-soft); cursor: pointer; }
 .email-message-meta { padding: 14px 24px 18px; border-bottom: 1px solid var(--border); }
 .email-message-meta > span { color: var(--purple-ink); font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
@@ -2961,8 +2981,9 @@ button {
   .email-skeleton-row .sender { grid-column: 2; grid-row: 1; width: 68%; }
   .email-skeleton-row .subject { grid-column: 2; grid-row: 2; width: 82%; }
   .email-skeleton-row .date { grid-column: 3; grid-row: 1; width: 58px; }
-  .email-message-layer, .email-dialog-layer { align-items: end; padding: 0; }
-  .email-message-panel { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
+  .email-dialog-layer { align-items: end; padding: 0; }
+  .email-message-layer { min-height: calc(100dvh - 170px); }
+  .email-message-panel { width: 100%; min-height: calc(100dvh - 170px); border-radius: 16px; }
   .email-draft-dialog, .email-task-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 23px 23px 0 0; }
   .email-accounts-page { min-height: 0; border-radius: 16px; }
   .email-accounts-page-head { align-items: flex-start; padding: 15px; }

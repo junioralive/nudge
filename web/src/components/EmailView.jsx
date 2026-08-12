@@ -293,6 +293,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   }
 
   return <section className="email-view">
+    {!selected && <>
     <nav className="email-section-nav" aria-label="Email sections">
       <button type="button" className={!accountsOpen ? "active" : ""} onClick={closeAccountManager}><Inbox size={16} />Inbox</button>
       <button type="button" className={accountsOpen ? "active" : ""} onClick={openAccountManager}><SquareCheckBig size={16} />Accounts<span>{accounts.length}</span></button>
@@ -359,12 +360,12 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
         {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
       </div>
     </section>}
+    </>}
 
-    {selected && <section className="email-message-layer" role="dialog" aria-modal="true" aria-labelledby="email-message-title">
+    {selected && <section className="email-message-layer" aria-labelledby="email-message-title">
       <article className="email-message-panel">
         <header className="floating-dialog-head">
-          <div><button type="button" onClick={() => { setSelected(null); setMessage(null); }} aria-label="Back to inbox"><ArrowLeft size={18} /></button><h2 id="email-message-title">Message</h2></div>
-          <button type="button" onClick={() => { setSelected(null); setMessage(null); }} aria-label="Close message"><X size={18} /></button>
+          <div><button type="button" onClick={() => { setSelected(null); setMessage(null); }} aria-label="Back to inbox"><ArrowLeft size={18} /></button><div><h2 id="email-message-title">Back to inbox</h2><p>{selected.accountName}</p></div></div>
         </header>
         <div className="email-message-meta">
           <span>{selected.accountName} · {selected.accountEmail}</span>
