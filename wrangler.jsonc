@@ -29,23 +29,19 @@
     {
       "binding": "DB",
       "database_name": "nudge-db",
-      "migrations_dir": "web/migrations",
-      "database_id": "83ff10cb-1b0f-43d8-8073-0078dacd4707"
+      "migrations_dir": "web/migrations"
     },
     {
       "binding": "MEMORY_DB",
-      "database_name": "nudge-memories",
-      "database_id": "76b8d867-9de7-4da0-9c01-a6d04a1793b4"
+      "database_name": "nudge-memories"
     }
   ],
   "kv_namespaces": [
     {
-      "binding": "EMAIL_KV",
-      "id": "4d55b584f60d46989822d9ae9eaa4470"
+      "binding": "EMAIL_KV"
     },
     {
-      "binding": "MEMORY_CONFIG_KV",
-      "id": "3e7ebd2b1f15463d915fef8da1b36ade"
+      "binding": "MEMORY_CONFIG_KV"
     }
   ],
   "vectorize": [

@@ -158,28 +158,31 @@ function ensureCloudflareResources() {
 }
 
 async function main() {
-  ensureCloudflareResources();
-  run("npm", ["run", "build", "-w", "web"]);
-
-  const existing = existingSecretNames();
-  const secrets = suppliedUserSecrets();
-  if (!existing.has("NUDGE_ENCRYPTION_KEY") && !existing.has("CREDENTIAL_ENCRYPTION_KEY") && !secrets.NUDGE_ENCRYPTION_KEY && !secrets.CREDENTIAL_ENCRYPTION_KEY) {
-    secrets.NUDGE_ENCRYPTION_KEY = randomBytes(32).toString("base64");
-  }
-  if (!existing.has("NUDGE_ACTION_SIGNING_SECRET")) secrets.NUDGE_ACTION_SIGNING_SECRET ||= randomBytes(48).toString("base64url");
-  const hasVapidPublic = existing.has("VAPID_PUBLIC_KEY");
-  const hasVapidPrivate = existing.has("VAPID_PRIVATE_KEY");
-  if (hasVapidPublic !== hasVapidPrivate) {
-    throw new Error("Only one VAPID key exists. Restore the matching pair before deploying; Nudge will not rotate it automatically.");
-  }
-  if (!hasVapidPublic && !hasVapidPrivate) {
-    const vapid = generateVapidKeys();
-    secrets.VAPID_PUBLIC_KEY = vapid.publicKey;
-    secrets.VAPID_PRIVATE_KEY = vapid.privateKey;
-  }
-
+  const publicTemplate = readFileSync(wranglerConfig, "utf8");
   let temporaryDirectory = "";
   try {
+    // Resolve account resource IDs only for this deployment. The checked-in
+    // template must remain portable for forks and Cloudflare Deploy buttons.
+    ensureCloudflareResources();
+    run("npm", ["run", "build", "-w", "web"]);
+
+    const existing = existingSecretNames();
+    const secrets = suppliedUserSecrets();
+    if (!existing.has("NUDGE_ENCRYPTION_KEY") && !existing.has("CREDENTIAL_ENCRYPTION_KEY") && !secrets.NUDGE_ENCRYPTION_KEY && !secrets.CREDENTIAL_ENCRYPTION_KEY) {
+      secrets.NUDGE_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+    }
+    if (!existing.has("NUDGE_ACTION_SIGNING_SECRET")) secrets.NUDGE_ACTION_SIGNING_SECRET ||= randomBytes(48).toString("base64url");
+    const hasVapidPublic = existing.has("VAPID_PUBLIC_KEY");
+    const hasVapidPrivate = existing.has("VAPID_PRIVATE_KEY");
+    if (hasVapidPublic !== hasVapidPrivate) {
+      throw new Error("Only one VAPID key exists. Restore the matching pair before deploying; Nudge will not rotate it automatically.");
+    }
+    if (!hasVapidPublic && !hasVapidPrivate) {
+      const vapid = generateVapidKeys();
+      secrets.VAPID_PUBLIC_KEY = vapid.publicKey;
+      secrets.VAPID_PRIVATE_KEY = vapid.privateKey;
+    }
+
     const deployArgs = ["wrangler", "deploy", "--config", generatedWranglerConfig()];
     if (Object.keys(secrets).length) {
       temporaryDirectory = mkdtempSync(path.join(tmpdir(), "nudge-secrets-"));
@@ -192,6 +195,7 @@ async function main() {
     run("npx", ["wrangler", "d1", "execute", "MEMORY_DB", "--remote", "--file", "web/memory-migrations/0001_memories.sql", "--config", wranglerConfig], { cwd: projectRoot });
   } finally {
     if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
+    writeFileSync(wranglerConfig, publicTemplate);
   }
 }
 

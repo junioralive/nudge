@@ -25,6 +25,7 @@ requireValue(config.workers_dev === true, "workers.dev must remain enabled for f
 requireValue(!config.routes, "public template must not contain a personal custom domain route");
 requireValue(!JSON.stringify(config).includes("junioralive.in"), "public template contains a personal domain");
 requireValue(d1.has("DB") && d1.has("MEMORY_DB"), "DB and MEMORY_DB bindings are required");
+requireValue((config.d1_databases || []).every((item) => !item.database_id), "public D1 bindings must not contain account-specific database IDs");
 requireValue(kv.has("EMAIL_KV") && kv.has("MEMORY_CONFIG_KV"), "EMAIL_KV and MEMORY_CONFIG_KV must be declared for Deploy-button provisioning");
 requireValue((config.kv_namespaces || []).every((item) => !item.id), "public KV bindings must not contain account-specific namespace IDs");
 requireValue(deployScript.includes('const REQUIRED_KV_BINDINGS = ["EMAIL_KV", "MEMORY_CONFIG_KV"]'), "deploy script must provision both KV bindings");
