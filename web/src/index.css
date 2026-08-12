@@ -253,7 +253,7 @@ body {
   box-shadow: var(--shadow-lg); animation: profile-menu-in .16s ease both;
 }
 .profile-menu.compact .profile-popover { left: auto; right: 0; bottom: auto; top: calc(100% + 9px); }
-.profile-popover-head { display: flex; align-items: center; gap: 9px; padding: 8px 9px 11px; border-bottom: 1px solid var(--border); margin-bottom: 5px; }
+.profile-popover-head { display: flex; align-items: center; gap: 9px; padding: 8px 9px 11px; margin-bottom: 5px; }
 .profile-popover-head .avatar { width: 31px; height: 31px; font-size: 12px; background: var(--ink); color: white; border: 0; box-shadow: none; }
 .profile-popover-head div { display: flex; flex-direction: column; min-width: 0; }
 .profile-popover-head strong { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
@@ -2991,7 +2991,7 @@ button {
 .email-draft-footer button { min-height: 38px; padding: 0 14px; }
 .email-draft-footer .send-email-btn { background: var(--purple-ink); }
 .email-accounts-page { min-height: 420px; overflow: hidden; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-sm); }
-.email-accounts-page-head { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; border-bottom: 1px solid var(--border); }
+.email-accounts-page-head { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; }
 .email-accounts-page-head > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .email-accounts-page-head > div > div { min-width: 0; }
 .email-accounts-page-head h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
