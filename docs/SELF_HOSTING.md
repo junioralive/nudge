@@ -25,6 +25,22 @@ If no custom domain is chosen, use the `workers.dev` URL printed at the end. If 
 5. Click Enable notifications on every device.
 6. Send a test notification.
 
+Optional services are configured after login. Gemini, Microsoft Outlook, Calendar feeds, and WhatsApp are not required to use tasks, reminders, Memories, Email with custom IMAP/SMTP, or push notifications.
+
+## Optional WhatsApp bridge
+
+WhatsApp requires an external, always-on [GOWA](https://github.com/aldinokemal/go-whatsapp-web-multidevice) REST server. It is not provisioned by the Cloudflare setup because WhatsApp Web needs a persistent process and local session storage.
+
+After GOWA is secured behind HTTPS, Basic Auth is enabled, and the phone is linked by QR:
+
+1. Copy the public HTTPS bridge URL.
+2. Copy the Basic Auth username and password.
+3. Copy the linked GOWA device ID.
+4. Open **Settings → Integrations → WhatsApp bridge** in Nudge.
+5. Enter all four values, save, and refresh the app.
+
+No WhatsApp value is needed on the Deploy-button screen. See [WhatsApp setup](WHATSAPP.md) for the full procedure and security checklist.
+
 iPhone and iPad users must install Nudge to the Home Screen before requesting push permission. Background notification sound is controlled by iOS; the app cannot force a custom MP3 while closed.
 
 ## Optional SQLite import

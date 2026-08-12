@@ -37,6 +37,7 @@ Nudge is designed as a focused, single-user workspace:
 | Completed | Keep a durable history of finished work. |
 | Memories | Optional semantic recall from Second Brain. |
 | Voice | Optional Gemini assistant for hands-free capture and recall. |
+| WhatsApp | Optional private chat access through a self-hosted GOWA bridge. |
 
 ## Architecture
 
@@ -196,6 +197,20 @@ https://<your-nudge-host>/api/email/oauth/outlook/callback
 
 Keep the old standalone Email MCP Worker online during migration. Reconnect MCP clients to the new endpoint only after inbox and reviewed-send acceptance tests pass.
 
+### WhatsApp — private chat bridge
+
+WhatsApp is optional and is not required during the Cloudflare deployment. Nudge connects on demand to a private [GOWA](https://github.com/aldinokemal/go-whatsapp-web-multidevice) REST bridge that you host on an always-on VPS or Docker server. A Cloudflare Worker cannot hold the persistent WhatsApp Web session itself.
+
+To enable it:
+
+1. Deploy GOWA in REST mode with persistent storage and Basic Auth.
+2. Put it behind a valid HTTPS reverse proxy; do not expose its local application port directly.
+3. Link the WhatsApp account using the GOWA QR flow and copy its device ID.
+4. In Nudge, open **Settings → Integrations → WhatsApp bridge**.
+5. Enter the HTTPS bridge URL, Basic Auth username, password, and linked device ID, then save and refresh Nudge.
+
+Nudge lists chat metadata only when WhatsApp opens, reads messages only after a chat is opened or explicitly requested, and requires visible one-time confirmation before sending. It does not automatically copy chats into D1 or Memories. See the complete [WhatsApp setup guide](docs/WHATSAPP.md), including VPS security and troubleshooting.
+
 ## Security model
 
 Nudge is intentionally single-user and private by default.
@@ -230,6 +245,7 @@ npm run migrate:sqlite    # optional legacy SQLite import
 - [Architecture and data ownership](docs/ARCHITECTURE.md)
 - [REST API](docs/API.md)
 - [Push and PWA setup](docs/PUSH.md)
+- [WhatsApp bridge](docs/WHATSAPP.md)
 - [Security and responsible disclosure](docs/SECURITY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 

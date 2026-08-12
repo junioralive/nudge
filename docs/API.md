@@ -23,4 +23,14 @@ Email endpoints are available only when the embedded Email KV store and encrypti
 
 Inbox and search responses contain signed opaque message references. Mutations use short-lived, single-use approval values returned by those APIs. Sending additionally requires `X-Confirm-Send: true`.
 
+WhatsApp endpoints are available only when the private GOWA bridge URL, Basic Auth credentials, and device ID are configured:
+
+- `GET /api/whatsapp/status`
+- `GET /api/whatsapp/chats?search=&limit=&offset=`
+- `GET /api/whatsapp/chats/:jid/messages?limit=&offset=`
+- `POST /api/whatsapp/messages/prepare`
+- `POST /api/whatsapp/messages/send`
+
+The prepare endpoint returns a signed approval for the exact recipient and message. Sending requires that unused approval plus `X-Confirm-Send: true`; approvals expire after ten minutes. WhatsApp has no public MCP endpoint in this release.
+
 Remote MCP endpoints are `POST /email/mcp` and `POST /memories/mcp`. Access mode uses Cloudflare Managed OAuth. Key mode publishes OAuth discovery, dynamic registration, authorization-code + PKCE, token, refresh, and revocation endpoints under `/.well-known/*` and `/oauth/*`. Email and Memories scopes are separate.
