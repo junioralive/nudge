@@ -292,7 +292,19 @@ export function normalizeGowaWebhook(value: any): NormalizedWebhook | null {
   if (!jid || !id) return null;
   const rawTimestamp = data.timestamp || data.time || value?.timestamp;
   const date = typeof rawTimestamp === "number" ? new Date(rawTimestamp > 10_000_000_000 ? rawTimestamp : rawTimestamp * 1000) : new Date(rawTimestamp || Date.now());
-  return { kind: isAck ? "ack" : "message", id, jid, deviceId: clean(value?.device_id || value?.deviceId || data.device_id || data.deviceId, 160), fromMe: Boolean(data.is_from_me ?? data.fromMe ?? data.key?.fromMe), text: clean(data.body || data.content || data.text || data.message?.conversation, 20_000), mediaType: clean(data.media_type || data.mediaType || data.type, 100), timestamp: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(), rawType };
+  return {
+    kind: isAck ? "ack" : "message",
+    id,
+    jid,
+    // Current GOWA webhooks use session_id for the configured device and
+    // device_id for the logged-in WhatsApp JID. Prefer the stable session ID.
+    deviceId: clean(value?.session_id || value?.sessionId || value?.device_id || value?.deviceId || data.session_id || data.sessionId || data.device_id || data.deviceId, 160),
+    fromMe: Boolean(data.is_from_me ?? data.fromMe ?? data.key?.fromMe),
+    text: clean(data.body || data.content || data.text || data.message?.conversation, 20_000),
+    mediaType: clean(data.media_type || data.mediaType || data.type, 100),
+    timestamp: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(),
+    rawType,
+  };
 }
 
 export async function verifyWebhookSignature(secret: string, raw: string, header: string | null): Promise<boolean> {
@@ -422,7 +434,7 @@ async function processInbound(env: Env, row: DelegationRow, eventIds: number[]) 
       const locator = await openJson<Locator>(row.locator_encrypted, encryptedKey); let externalId = "";
       if (row.source === "whatsapp") {
         const sent = await sendWhatsAppMessage(env, { jid: (locator as any).jid, message: decision.reply, replyMessageId: undefined });
-        externalId = sent.messageId || `nudge:${crypto.randomUUID()}`;
+        externalId = sent.messageId;
       } else {
         const emailLocator = locator as any;
         const draft = await callEmailTool(env, "email_create_message_draft", { accountId: emailLocator.accountId, text: decision.reply, replyToMessage: { folder: emailLocator.folder, uid: emailLocator.lastUid, replyAll: false, quoteOriginal: true } });

@@ -64,6 +64,14 @@ async function request(env: Env, path: string, init: RequestInit = {}, timeoutMs
         : response.status === 404 ? "WhatsApp resource was not found" : "WhatsApp service unavailable";
       throw new WhatsAppError(message, response.status >= 400 && response.status < 500 ? response.status : 502);
     }
+    // GOWA normally mirrors failures through HTTP status codes, but some
+    // deployments/proxies return a 2xx response with an error envelope. Do not
+    // let callers record those operations as successfully delivered.
+    const applicationStatus = Number(body?.status);
+    const applicationCode = clean(body?.code, 100).toUpperCase();
+    if ((Number.isFinite(applicationStatus) && applicationStatus >= 400) || (applicationCode && applicationCode !== "SUCCESS")) {
+      throw new WhatsAppError("WhatsApp service rejected the request", applicationStatus >= 400 && applicationStatus < 500 ? applicationStatus : 502);
+    }
     return body;
   } catch (error) {
     if (error instanceof WhatsAppError) throw error;
@@ -100,7 +108,12 @@ export async function configureWhatsAppWebhook(env: Env, webhookUrl: string, web
 export async function getWhatsAppStatus(env: Env) {
   const result = await request(env, "/app/status");
   const value = result?.results || result?.result || result;
-  return { configured: true, connected: Boolean(value?.connected), loggedIn: Boolean(value?.logged_in), deviceId: clean(value?.device_id, 160) };
+  return {
+    configured: true,
+    connected: Boolean(value?.is_connected ?? value?.connected),
+    loggedIn: Boolean(value?.is_logged_in ?? value?.logged_in),
+    deviceId: clean(value?.device_id, 160),
+  };
 }
 
 interface WhatsAppContact {
@@ -404,7 +417,9 @@ export async function sendWhatsAppMessage(env: Env, args: { jid: unknown; messag
     method: "POST",
     body: JSON.stringify({ phone: jid, message, ...(args.replyMessageId ? { reply_message_id: clean(args.replyMessageId, 300) } : {}) }),
   }, 45_000);
-  return { sent: true, messageId: clean(result?.results?.message_id || result?.results?.id, 300) || null };
+  const messageId = clean(result?.results?.message_id || result?.results?.messageId || result?.results?.id, 300);
+  if (!messageId) throw new WhatsAppError("WhatsApp did not confirm message delivery");
+  return { sent: true, messageId };
 }
 
 function base64Url(bytes: Uint8Array): string {

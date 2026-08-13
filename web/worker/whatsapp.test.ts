@@ -3,7 +3,7 @@ import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval, createWhatsAppApproval,
   configureWhatsAppWebhook, createWhatsAppForwardApproval, createWhatsAppScheduleApproval, getWhatsAppBriefing, getWhatsAppMessages,
   listWhatsAppChats, updateWhatsAppChat, updateWhatsAppMessage,
-  whatsappConfig,
+  getWhatsAppStatus, sendWhatsAppMessage, whatsappConfig,
 } from "./whatsapp";
 import { runTool } from "./tools";
 import type { Env } from "./types";
@@ -43,6 +43,23 @@ describe("WhatsApp adapter", () => {
         webhook_events: "message,message.ack",
       }),
     })]);
+    fetchMock.mockRestore();
+  });
+
+  it("reads current GOWA connection status fields", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      status: 200, code: "SUCCESS", results: { is_connected: true, is_logged_in: true, device_id: "device-1" },
+    }), { status: 200 }));
+    await expect(getWhatsAppStatus(env())).resolves.toMatchObject({ connected: true, loggedIn: true, deviceId: "device-1" });
+    fetchMock.mockRestore();
+  });
+
+  it("does not report an unconfirmed or business-level failed send as delivered", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 200, code: "SUCCESS", results: {} }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 400, code: "ERROR", message: "send failed" }), { status: 200 }));
+    await expect(sendWhatsAppMessage(env(), { jid: "919999999999@s.whatsapp.net", message: "Hello" })).rejects.toThrow("did not confirm");
+    await expect(sendWhatsAppMessage(env(), { jid: "919999999999@s.whatsapp.net", message: "Hello" })).rejects.toThrow("rejected");
     fetchMock.mockRestore();
   });
 

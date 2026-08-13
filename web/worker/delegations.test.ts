@@ -19,6 +19,7 @@ describe("delegation safety", () => {
 
   it("normalizes direct text and ack webhook events", () => {
     expect(normalizeGowaWebhook({ event: "message", data: { id: "m1", chat_id: "9199@s.whatsapp.net", body: "hello", timestamp: 1_786_600_000 } })).toMatchObject({ kind: "message", id: "m1", jid: "9199@s.whatsapp.net", text: "hello" });
+    expect(normalizeGowaWebhook({ event: "message", session_id: "device-1", device_id: "9198@s.whatsapp.net", data: { id: "m2", chat_id: "9199@s.whatsapp.net", body: "hello" } })).toMatchObject({ deviceId: "device-1" });
     expect(normalizeGowaWebhook({ event: "message.ack", data: { message_id: "m1", jid: "9199@s.whatsapp.net" } })).toMatchObject({ kind: "ack", id: "m1" });
     expect(normalizeGowaWebhook({ event: "other", data: {} })).toBeNull();
   });
