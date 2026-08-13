@@ -5,6 +5,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const config = JSON.parse(readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 const deployScript = readFileSync(path.join(root, "scripts", "deploy-cloudflare.mjs"), "utf8");
+const memoriesMcpSource = readFileSync(path.join(root, "web", "worker", "memoriesMcp.ts"), "utf8");
 const failures = [];
 
 function requireValue(condition, message) {
@@ -31,6 +32,7 @@ requireValue((config.kv_namespaces || []).every((item) => !item.id), "public KV 
 requireValue(deployScript.includes('const REQUIRED_KV_BINDINGS = ["EMAIL_KV", "MEMORY_CONFIG_KV"]'), "deploy script must provision both KV bindings");
 requireValue(vectorize.has("MEMORY_VECTORIZE"), "MEMORY_VECTORIZE binding is required");
 requireValue(durableObjects.has("MCP_OBJECT") && durableObjects.has("MEMORY_MCP_OBJECT"), "both MCP Durable Objects are required");
+requireValue(memoriesMcpSource.includes('{ binding: "MEMORY_MCP_OBJECT" }'), "Memories MCP must route through its dedicated Durable Object binding");
 requireValue(config.ai?.binding === "AI", "Workers AI binding is required");
 requireValue(workerFirst.has("/api/*") && workerFirst.has("/email/mcp") && workerFirst.has("/memories/mcp"), "API and MCP routes must run through the Worker");
 requireValue(pkg.scripts?.build && pkg.scripts?.deploy && pkg.scripts?.["setup:cloudflare"], "Cloudflare build, deploy, and guided setup scripts are required");

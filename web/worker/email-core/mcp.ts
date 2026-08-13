@@ -125,7 +125,13 @@ const remoteDelete = annotations(false, true, true, true);
 const remoteSend = annotations(false, true, false, true);
 
 export class MyMCP extends McpAgent<McpEnv> {
-	server = new McpServer({ name: "email-mcp-server", version: "1.0.0" });
+	server = new McpServer({
+		name: "nudge-email",
+		title: "Nudge Email",
+		version: "1.0.0",
+		description: "Private email search, reading, drafting, and account tools for Nudge.",
+		websiteUrl: "https://github.com/junioralive/nudge",
+	});
 
 	async init() {
 		const env = (this as unknown as { env: MailEnv }).env;

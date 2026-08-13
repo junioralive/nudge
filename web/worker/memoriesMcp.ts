@@ -31,7 +31,13 @@ function text(value: unknown) {
 }
 
 export class MemoriesMCP extends McpAgent<McpEnv> {
-  server = new McpServer({ name: "nudge-memories", version: "1.0.0" });
+  server = new McpServer({
+    name: "nudge-memories",
+    title: "Nudge Memories",
+    version: "1.0.0",
+    description: "Private memory capture, recall, lifecycle, and relationship tools for Nudge.",
+    websiteUrl: "https://github.com/junioralive/nudge",
+  });
 
   async init() {
     const env = (this as unknown as { env: Env }).env;
@@ -103,4 +109,4 @@ export class MemoriesMCP extends McpAgent<McpEnv> {
   }
 }
 
-export const memoriesMcpHandler = MemoriesMCP.serve("/memories/mcp");
+export const memoriesMcpHandler = MemoriesMCP.serve("/memories/mcp", { binding: "MEMORY_MCP_OBJECT" });
