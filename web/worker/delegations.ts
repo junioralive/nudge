@@ -143,17 +143,42 @@ export async function prepareDelegation(env: Env, input: Record<string, unknown>
   }
   const encryptedKey = key(env); const contexts = validContext(input.allowed_context ?? input.allowedContext);
   const hash = await locatorHash(limits.source, locator);
+  const now = new Date().toISOString();
   const result = await env.DB.prepare(
     `INSERT INTO delegated_conversations
-      (source, locator_hash, locator_encrypted, label_encrypted, objective_encrypted, context_encrypted, duration_minutes, max_replies)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(limits.source, hash, await sealJson(locator, encryptedKey), await sealJson(label, encryptedKey), await sealJson(objective, encryptedKey), await sealJson(contexts, encryptedKey), limits.durationMinutes, limits.maxReplies).run();
-  const id = Number(result.meta.last_row_id);
-  return { ok: true, requires_confirmation: true, approval: await approval(env, id), delegation: { id, source: limits.source, recipient: label, objective, durationMinutes: limits.durationMinutes, maxReplies: limits.maxReplies, allowedContext: contexts } };
+      (source, locator_hash, locator_encrypted, label_encrypted, objective_encrypted, context_encrypted, duration_minutes, max_replies, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(source, locator_hash) WHERE status = 'prepared' DO UPDATE SET
+       locator_encrypted = excluded.locator_encrypted,
+       label_encrypted = excluded.label_encrypted,
+       objective_encrypted = excluded.objective_encrypted,
+       context_encrypted = excluded.context_encrypted,
+       duration_minutes = excluded.duration_minutes,
+       max_replies = excluded.max_replies,
+       updated_at = excluded.updated_at
+     RETURNING id`,
+  ).bind(
+    limits.source, hash, await sealJson(locator, encryptedKey), await sealJson(label, encryptedKey),
+    await sealJson(objective, encryptedKey), await sealJson(contexts, encryptedKey), limits.durationMinutes,
+    limits.maxReplies, now,
+  ).first<{ id: number }>();
+  const id = Number(result?.id);
+  if (!Number.isInteger(id) || id < 1) throw new DelegationError("Delegation could not be prepared", 500);
+  return {
+    ok: true,
+    requires_confirmation: true,
+    confirmationId: id,
+    approval: await approval(env, id),
+    delegation: { id, source: limits.source, recipient: label, objective, durationMinutes: limits.durationMinutes, maxReplies: limits.maxReplies, allowedContext: contexts },
+  };
 }
 
-export async function startDelegation(env: Env, token: unknown) {
-  const id = await consumeApproval(env, token); const now = new Date();
+export async function startDelegation(env: Env, approvalOrId: unknown) {
+  const directId = typeof approvalOrId === "number" || /^\d+$/.test(clean(approvalOrId, 40))
+    ? Number(approvalOrId)
+    : 0;
+  const id = Number.isInteger(directId) && directId > 0 ? directId : await consumeApproval(env, approvalOrId);
+  const now = new Date();
   const row = await env.DB.prepare("SELECT source, duration_minutes FROM delegated_conversations WHERE id = ? AND status = 'prepared'").bind(id).first<{ source: DelegationSource; duration_minutes: number }>();
   if (!row) throw new DelegationError("Prepared delegation was not found", 404);
   const startsAt = now.toISOString(); const expiresAt = new Date(now.getTime() + row.duration_minutes * 60_000).toISOString();

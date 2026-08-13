@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { delegationLimits, escalationReason, normalizeGowaWebhook, verifyWebhookSignature } from "./delegations";
+import { delegationLimits, escalationReason, normalizeGowaWebhook, startDelegation, verifyWebhookSignature } from "./delegations";
+import { toolDeclarations } from "./tools";
+import type { Env } from "./types";
 
 async function signature(secret: string, body: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -25,6 +27,25 @@ describe("delegation safety", () => {
     const body = JSON.stringify({ event: "message", data: { id: "1" } });
     expect(await verifyWebhookSignature("secret", body, await signature("secret", body))).toBe(true);
     expect(await verifyWebhookSignature("secret", `${body} `, await signature("secret", body))).toBe(false);
+  });
+
+  it("uses a stable numeric confirmation ID for voice activation", () => {
+    const declaration = toolDeclarations.find((tool) => tool.name === "start_delegation");
+    expect(declaration?.parameters).toMatchObject({ required: ["id"], properties: { id: { type: "NUMBER" } } });
+  });
+
+  it("starts a confirmed prepared delegation without replaying an opaque approval token", async () => {
+    const env = {
+      DB: {
+        prepare: (sql: string) => ({
+          bind: (...bindings: unknown[]) => ({
+            first: async () => sql.startsWith("SELECT source") ? { source: "whatsapp", duration_minutes: 20 } : null,
+            run: async () => ({ meta: { changes: bindings.at(-1) === 42 ? 1 : 0 } }),
+          }),
+        }),
+      },
+    } as unknown as Env;
+    await expect(startDelegation(env, 42)).resolves.toMatchObject({ ok: true, id: 42, status: "active" });
   });
 
   it.each([

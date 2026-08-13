@@ -29,7 +29,11 @@ export const toolDeclarations: FunctionDeclaration[] = [
       required: ["source", "objective", "duration_minutes", "max_replies"],
     },
   },
-  { name: "start_delegation", description: "Start a prepared delegation only after the user explicitly confirms its exact read-back in a later turn.", parameters: { type: Type.OBJECT, properties: { approval: { type: Type.STRING } }, required: ["approval"] } },
+  {
+    name: "start_delegation",
+    description: "Start a prepared delegation only after the user explicitly confirms its exact read-back in a later turn. Pass the stable numeric confirmationId returned by prepare_delegation; do not prepare the same delegation again.",
+    parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER, description: "The confirmationId returned by prepare_delegation." } }, required: ["id"] },
+  },
   { name: "list_delegations", description: "List bounded delegated conversations by source or status. These are separate from tasks and scheduled automations.", parameters: { type: Type.OBJECT, properties: { source: { type: Type.STRING, enum: ["whatsapp", "email"] }, status: { type: Type.STRING }, limit: { type: Type.NUMBER } } } },
   { name: "get_delegation", description: "Inspect one delegation, including its encrypted audit transcript and outcome.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
   { name: "pause_delegation", description: "Pause one active delegation immediately after the user asks.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
@@ -413,7 +417,7 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not prepare delegation" }; }
   }
   if (name === "start_delegation") {
-    try { return await startDelegation(env, args.approval); }
+    try { return await startDelegation(env, args.id ?? args.approval); }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not start delegation" }; }
   }
   if (name === "list_delegations") {
