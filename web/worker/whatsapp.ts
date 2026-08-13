@@ -187,6 +187,72 @@ export async function listWhatsAppChats(env: Env, options: { limit?: number; off
   };
 }
 
+const WHATSAPP_BRIEFING_SETTING = "whatsapp_briefed_through";
+
+function validBriefingCheckpoint(value: unknown, now: number): string | null {
+  const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed > now || parsed < now - 7 * 24 * 60 * 60 * 1_000) return null;
+  return new Date(parsed).toISOString();
+}
+
+/**
+ * GOWA does not expose WhatsApp's device unread counter. A Nudge briefing
+ * therefore reports new inbound messages since the previous successful Nudge
+ * briefing. It never calls the mark-read endpoint or changes WhatsApp state.
+ */
+export async function getWhatsAppBriefing(env: Env, options: { chatLimit?: number; messagesPerChat?: number } = {}) {
+  const now = Date.now();
+  const through = new Date(now).toISOString();
+  const stored = await env.DB.prepare("SELECT value FROM settings WHERE key = ?")
+    .bind(WHATSAPP_BRIEFING_SETTING).first<{ value: string }>();
+  const since = validBriefingCheckpoint(stored?.value, now) || new Date(now - 24 * 60 * 60 * 1_000).toISOString();
+  const chatLimit = Math.min(Math.max(Number(options.chatLimit) || 8, 1), 12);
+  const messagesPerChat = Math.min(Math.max(Number(options.messagesPerChat) || 5, 1), 10);
+  const listed = await listWhatsAppChats(env, { limit: Math.max(chatLimit * 2, 16) });
+  const candidates = listed.chats
+    .filter((chat: any) => !chat.contactOnly && (!chat.lastMessageAt || Date.parse(chat.lastMessageAt) >= Date.parse(since)))
+    .slice(0, chatLimit);
+
+  const results = await Promise.allSettled(candidates.map(async (chat: any) => {
+    const result = await getWhatsAppMessages(env, chat.jid, {
+      limit: messagesPerChat,
+      startTime: since,
+      endTime: through,
+      fromMe: false,
+    });
+    const messages = result.messages
+      .filter((message: any) => !message.fromMe && Date.parse(message.timestamp) > Date.parse(since) && Date.parse(message.timestamp) <= now)
+      .map((message: any) => ({
+        id: message.id,
+        sender: message.sender,
+        content: message.content,
+        timestamp: message.timestamp,
+        mediaType: message.mediaType,
+      }));
+    return messages.length ? { jid: chat.jid, name: result.chat.name || chat.name, messages } : null;
+  }));
+
+  const failedChats = results.filter((result) => result.status === "rejected").length;
+  const chats = results.flatMap((result) => result.status === "fulfilled" && result.value ? [result.value] : []);
+  const messageCount = chats.reduce((total, chat) => total + chat.messages.length, 0);
+  if (failedChats === 0) {
+    await env.DB.prepare(
+      "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    ).bind(WHATSAPP_BRIEFING_SETTING, through, through).run();
+  }
+  return {
+    ok: failedChats === 0,
+    tracking: "since_last_nudge_briefing",
+    since,
+    through,
+    messageCount,
+    chats,
+    partial: failedChats > 0,
+    failedChats,
+    note: "This does not mark WhatsApp messages as read.",
+  };
+}
+
 export async function resolveWhatsAppRecipient(env: Env, value: unknown) {
   const query = clean(value, 300);
   if (!query) return { match: null, candidates: [] as Array<{ jid: string; name: string }> };

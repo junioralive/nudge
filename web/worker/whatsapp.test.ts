@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, createWhatsAppApproval, createWhatsAppForwardApproval,
-  getWhatsAppMessages, listWhatsAppChats, updateWhatsAppChat, updateWhatsAppMessage, whatsappConfig,
+  getWhatsAppBriefing, getWhatsAppMessages, listWhatsAppChats, updateWhatsAppChat, updateWhatsAppMessage, whatsappConfig,
 } from "./whatsapp";
 import { runTool } from "./tools";
 import type { Env } from "./types";
@@ -115,6 +115,51 @@ describe("WhatsApp adapter", () => {
     });
     expect(requests.some((url) => url.includes("search=invoice") && url.includes("is_from_me=false") && url.includes("media_only=true"))).toBe(true);
     fetchMock.mockRestore();
+  });
+
+  it("briefs new inbound WhatsApp updates without marking messages read", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-13T12:00:00Z"));
+    const requests: string[] = [];
+    let savedCheckpoint = "";
+    const testEnv = {
+      ...env(),
+      DB: {
+        prepare: vi.fn((sql: string) => ({
+          bind: (...values: string[]) => ({
+            first: async () => sql.startsWith("SELECT") ? { value: "2026-08-13T10:00:00Z" } : null,
+            run: async () => { savedCheckpoint = values[1] || ""; },
+          }),
+        })),
+      } as any,
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      requests.push(url);
+      if (url.includes("/user/my/contacts")) return new Response(JSON.stringify({ results: { data: [{ jid: "919777777777@s.whatsapp.net", name: "Ayan" }] } }), { status: 200 });
+      if (url.includes("/chats?")) return new Response(JSON.stringify({ results: { data: [{ jid: "919777777777@s.whatsapp.net", name: "Ayan", last_message_time: "2026-08-13T11:30:00Z" }] } }), { status: 200 });
+      if (url.includes("/messages?")) return new Response(JSON.stringify({ results: {
+        chat_info: { name: "Ayan" },
+        data: [
+          { id: "incoming-1", sender_display_name: "Ayan", content: "Can we talk?", timestamp: "2026-08-13T11:30:00Z", is_from_me: false },
+          { id: "outgoing-1", sender_display_name: "Junior", content: "Later", timestamp: "2026-08-13T11:35:00Z", is_from_me: true },
+        ],
+      } }), { status: 200 });
+      return new Response("not found", { status: 404 });
+    });
+
+    await expect(getWhatsAppBriefing(testEnv)).resolves.toMatchObject({
+      ok: true,
+      tracking: "since_last_nudge_briefing",
+      messageCount: 1,
+      chats: [{ name: "Ayan", messages: [{ content: "Can we talk?" }] }],
+      note: "This does not mark WhatsApp messages as read.",
+    });
+    expect(savedCheckpoint).toBe("2026-08-13T12:00:00.000Z");
+    expect(requests.some((url) => url.includes("is_from_me=false"))).toBe(true);
+    expect(requests.some((url) => url.includes("mark-read") || url.includes("mark_read"))).toBe(false);
+    fetchMock.mockRestore();
+    vi.useRealTimers();
   });
 
   it("maps reversible message and chat actions to GOWA endpoints", async () => {

@@ -6,11 +6,22 @@ import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
 import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, createWhatsAppApproval, createWhatsAppForwardApproval,
-  forwardWhatsAppMessage, getWhatsAppGroup, getWhatsAppMessages, listWhatsAppChats, listWhatsAppGroups,
+  forwardWhatsAppMessage, getWhatsAppBriefing, getWhatsAppGroup, getWhatsAppMessages, listWhatsAppChats, listWhatsAppGroups,
   resolveWhatsAppRecipient, searchWhatsAppContacts, sendWhatsAppMessage, updateWhatsAppChat, updateWhatsAppMessage,
 } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "brief_whatsapp",
+    description: "Return bounded recent inbound WhatsApp updates since the last successful Nudge briefing. Use for an explicit general briefing such as 'brief me', 'catch me up', or 'what did I miss', as well as an explicit WhatsApp briefing. This reads only recent inbound messages and never marks them read.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        chatLimit: { type: Type.NUMBER, description: "Maximum recent chats to inspect. Default 8, maximum 12." },
+        messagesPerChat: { type: Type.NUMBER, description: "Maximum inbound messages per chat. Default 5, maximum 10." },
+      },
+    },
+  },
   {
     name: "list_whatsapp_chats",
     description: "Search WhatsApp chats and synced contacts by saved name or phone number. Results can include contacts with no recent conversation. Use only when the user explicitly asks about WhatsApp or a recipient must be selected. This does not read message bodies.",
@@ -319,6 +330,15 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "brief_whatsapp") {
+    try {
+      return await getWhatsAppBriefing(env, {
+        chatLimit: Math.min(Number(args.chatLimit) || 8, 12),
+        messagesPerChat: Math.min(Number(args.messagesPerChat) || 5, 10),
+      });
+    }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+  }
   if (name === "search_whatsapp_contacts") {
     try { return { contacts: await searchWhatsAppContacts(env, args.query, Math.min(Number(args.limit) || 10, 50)) }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
