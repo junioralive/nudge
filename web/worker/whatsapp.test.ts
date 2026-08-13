@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval, createWhatsAppApproval,
-  createWhatsAppForwardApproval, createWhatsAppScheduleApproval, getWhatsAppBriefing, getWhatsAppMessages,
+  configureWhatsAppWebhook, createWhatsAppForwardApproval, createWhatsAppScheduleApproval, getWhatsAppBriefing, getWhatsAppMessages,
   listWhatsAppChats, updateWhatsAppChat, updateWhatsAppMessage,
   whatsappConfig,
 } from "./whatsapp";
@@ -25,6 +25,25 @@ describe("WhatsApp adapter", () => {
     expect(whatsappConfig(env())).toMatchObject({ baseUrl: "https://whatsapp.example.com", deviceId: "device-1" });
     expect(whatsappConfig({ ...env(), WHATSAPP_BASE_URL: "http://whatsapp.example.com" })).toBeUndefined();
     expect(whatsappConfig({ ...env(), WHATSAPP_BASE_URL: "https://user:pass@whatsapp.example.com" })).toBeUndefined();
+  });
+
+  it("registers the signed delegation webhook with GOWA", async () => {
+    const requests: Array<{ url: string; method: string; body: any }> = [];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      requests.push({ url: String(input), method: String(init?.method), body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ results: {} }), { status: 200 });
+    });
+    await configureWhatsAppWebhook(env(), "https://nudge.example.com/webhooks/whatsapp/gowa", "a".repeat(32));
+    expect(requests).toEqual([expect.objectContaining({
+      url: "https://whatsapp.example.com/devices/device-1/webhook",
+      method: "PATCH",
+      body: expect.objectContaining({
+        webhook_url: "https://nudge.example.com/webhooks/whatsapp/gowa",
+        webhook_secret: "a".repeat(32),
+        webhook_events: "message,message.ack",
+      }),
+    })]);
+    fetchMock.mockRestore();
   });
 
   it("binds one-time approval to the exact message", async () => {

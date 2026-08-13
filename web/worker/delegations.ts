@@ -1,11 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { openJson, sealJson } from "./email-core/crypto";
 import { callEmailTool, safeEmailAccounts } from "./email";
-import { integrationEncryptionKey } from "./integrationSecrets";
+import { integrationEncryptionKey, loadIntegrationSecret } from "./integrationSecrets";
 import { sendAppPush } from "./push";
 import { recallMemories } from "./secondBrain";
 import type { Env } from "./types";
-import { resolveWhatsAppRecipient, sendWhatsAppMessage, whatsappConfig } from "./whatsapp";
+import { configureWhatsAppWebhook, getWhatsAppMessages, resolveWhatsAppRecipient, sendWhatsAppMessage, whatsappConfig } from "./whatsapp";
 
 const encoder = new TextEncoder();
 const APPROVAL_SECONDS = 10 * 60;
@@ -187,7 +187,33 @@ export async function startDelegation(env: Env, approvalOrId: unknown) {
      WHERE id = ? AND status = 'prepared'`,
   ).bind(startsAt, expiresAt, startsAt, startsAt, id).run();
   if (!result.meta.changes) throw new DelegationError("Delegation could not be started", 409);
+  if (row.source === "whatsapp") await ensureWhatsAppWebhook(env).catch(() => undefined);
   return { ok: true, id, status: "active", startsAt, expiresAt };
+}
+
+async function ensureWhatsAppWebhook(env: Env): Promise<boolean> {
+  const config = whatsappConfig(env);
+  const webhookUrl = clean(env.WHATSAPP_WEBHOOK_URL, 1_000);
+  if (!config || !webhookUrl) return false;
+  const current = await loadIntegrationSecret(env, "whatsapp") || {};
+  if (current.webhookRegisteredUrl === webhookUrl && current.webhookSecret) return true;
+  const secret = current.webhookSecret || env.WHATSAPP_WEBHOOK_SECRET || base64Url(crypto.getRandomValues(new Uint8Array(32)));
+  await configureWhatsAppWebhook(env, webhookUrl, secret);
+  const payload = {
+    ...current,
+    baseUrl: config.baseUrl,
+    username: config.username,
+    password: config.password,
+    deviceId: config.deviceId,
+    webhookSecret: secret,
+    webhookUrl,
+    webhookRegisteredUrl: webhookUrl,
+  };
+  await env.DB.prepare(
+    "INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES ('whatsapp', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at",
+  ).bind(await sealJson(payload, key(env))).run();
+  env.WHATSAPP_WEBHOOK_SECRET = secret;
+  return true;
 }
 
 async function publicRow(env: Env, row: DelegationRow, includeEvents = false) {
@@ -438,7 +464,65 @@ async function pollEmail(env: Env, row: DelegationRow) {
   if (inboundIds.length) await processInbound(env, row, inboundIds);
 }
 
+async function pollWhatsApp(env: Env, row: DelegationRow): Promise<boolean> {
+  const encryptedKey = key(env);
+  const locator = await openJson<{ jid: string }>(row.locator_encrypted, encryptedKey);
+  const startsAt = row.starts_at || row.created_at;
+  const result = await getWhatsAppMessages(env, locator.jid, { limit: 100, startTime: startsAt });
+  const threshold = Date.parse(row.last_external_at || startsAt);
+  const messages: Array<{ id: string; content: string; timestamp: string; fromMe: boolean; mediaType: string | null }> = (result.messages || [])
+    .filter((message: any) => {
+      const occurred = Date.parse(message.timestamp);
+      return Number.isFinite(occurred) && occurred >= Date.parse(startsAt) && (!Number.isFinite(threshold) || occurred >= threshold);
+    })
+    .sort((left: any, right: any) => Date.parse(left.timestamp) - Date.parse(right.timestamp));
+  const inboundIds: number[] = [];
+  let latest = row.last_external_at || startsAt;
+  for (const message of messages) {
+    if (Date.parse(message.timestamp) > Date.parse(latest)) latest = message.timestamp;
+    if (message.fromMe) {
+      const known = await env.DB.prepare(
+        "SELECT id FROM delegated_conversation_events WHERE delegation_id = ? AND external_event_id = ? AND direction = 'outbound'",
+      ).bind(row.id, await sha256(`event:${message.id}`)).first();
+      if (!known) {
+        await updateState(env, row.id, ["active"], "paused", "Paused because you manually replied in this conversation");
+        return true;
+      }
+      continue;
+    }
+    const unsupported = Boolean(message.mediaType && !["text", "conversation"].includes(message.mediaType.toLowerCase())) || !message.content;
+    const eventId = await addEvent(
+      env,
+      row.id,
+      message.id,
+      "inbound",
+      unsupported ? message.mediaType || "unsupported" : "text",
+      message.content || `[${message.mediaType || "unsupported message"}]`,
+      { recoveredBy: "poll" },
+      message.timestamp,
+      unsupported ? "processed" : "queued",
+      new Date().toISOString(),
+    );
+    if (unsupported && eventId) {
+      await finish(env, row, "needs-you", "A non-text WhatsApp message needs your attention");
+      return true;
+    }
+    if (eventId) inboundIds.push(eventId);
+  }
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    "UPDATE delegated_conversations SET last_external_at = ?, last_activity_at = CASE WHEN ? > COALESCE(last_activity_at, '') THEN ? ELSE last_activity_at END, claimed_at = NULL, next_check_at = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+  ).bind(latest, latest, latest, new Date(Date.now() + 60_000).toISOString(), now, row.id).run();
+  if (inboundIds.length) {
+    row.last_external_at = latest;
+    await processInbound(env, row, inboundIds);
+    return true;
+  }
+  return false;
+}
+
 export async function processDelegations(env: Env): Promise<{ claimed: number; processed: number }> {
+  await ensureWhatsAppWebhook(env).catch(() => false);
   const now = new Date().toISOString();
   const expired = await env.DB.prepare("SELECT * FROM delegated_conversations WHERE status = 'active' AND expires_at <= ? LIMIT 20").bind(now).all<DelegationRow>();
   for (const row of expired.results || []) await finish(env, row, "expired", "The approved delegation window ended");
@@ -452,7 +536,13 @@ export async function processDelegations(env: Env): Promise<{ claimed: number; p
     const events = await env.DB.prepare("SELECT id FROM delegated_conversation_events WHERE delegation_id = ? AND direction = 'inbound' AND status = 'queued' AND available_at <= ? ORDER BY occurred_at, id LIMIT 20").bind(row.id, now).all<{ id: number }>();
     const ids = (events.results || []).map((event) => event.id);
     if (ids.length) { await processInbound(env, row, ids); processed += 1; }
-    else await env.DB.prepare("UPDATE delegated_conversations SET claimed_at = NULL, next_check_at = ?, updated_at = ? WHERE id = ?").bind(new Date(Date.now() + 60_000).toISOString(), now, row.id).run();
+    else {
+      const recovered = await pollWhatsApp(env, row).catch(async () => {
+        await env.DB.prepare("UPDATE delegated_conversations SET claimed_at = NULL, next_check_at = ?, updated_at = ? WHERE id = ? AND status = 'active'").bind(new Date(Date.now() + 60_000).toISOString(), now, row.id).run();
+        return false;
+      });
+      if (recovered) processed += 1;
+    }
   }
   await env.DB.prepare("DELETE FROM delegation_webhook_replays WHERE received_at < ?").bind(new Date(Date.now() - 24 * 60 * 60_000).toISOString()).run().catch(() => undefined);
   return { claimed, processed };

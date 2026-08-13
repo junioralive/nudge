@@ -363,6 +363,7 @@ button {
 .desktop-only { display: none; }
 
 .shell {
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
@@ -1321,7 +1322,8 @@ button {
   .add-toggle-btn { display: flex; }
 
   .shell {
-    max-width: 1600px;
+    max-width: none;
+    margin: 0;
     padding: 40px 36px;
     gap: 48px;
   }
@@ -3134,3 +3136,8 @@ button {
 /* Bounded delegated conversations */
 .whatsapp-webhook-settings{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid #eceaed}.whatsapp-webhook-settings>div{display:grid;gap:4px}.whatsapp-webhook-settings small{color:#929096}.whatsapp-webhook-reveal{display:grid;gap:10px;margin-top:14px;padding:16px;border:1px solid #e6c9ee;border-radius:18px;background:#fcf7fe}.whatsapp-webhook-reveal p{margin:0;color:#77727c}.whatsapp-webhook-reveal label{display:grid;gap:4px}.whatsapp-webhook-reveal label>span{font-size:12px;font-weight:700;color:#77727c;text-transform:uppercase}.whatsapp-webhook-reveal code{overflow-wrap:anywhere;user-select:all}
 .delegation-section{display:grid;gap:18px}.delegation-section>header{display:flex;align-items:center;justify-content:space-between;padding:22px 26px;background:#fff;border-radius:24px}.delegation-section>header>div{display:flex;align-items:center;gap:12px}.delegation-section h2,.delegation-section h3,.delegation-section p{margin:0}.delegation-section>header p{color:#929296;margin-top:3px}.delegation-list{display:grid;gap:12px}.delegation-card{display:flex;align-items:center;gap:18px;background:#fff;border-radius:24px;padding:20px 22px;box-shadow:0 2px 4px #1111110b}.delegation-main{flex:1;text-align:left;background:none;border:0;padding:0;min-width:0}.delegation-main h3{font-size:18px;margin:10px 0 4px}.delegation-main p{color:#4e4e52;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.delegation-main small{display:block;color:#929296;margin-top:9px}.delegation-state{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:#efeff1;color:#5e5e64;font-size:12px;font-weight:700;text-transform:capitalize}.delegation-state.active{background:#f5ddfb;color:#53156b}.delegation-state.needs-you,.delegation-state.failed{background:#fff0e9;color:#9c3d18}.delegation-state.completed{background:#e8f8ee;color:#246c40}.delegation-actions{display:flex;gap:7px}.delegation-actions button,.delegation-confirm button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:12px;padding:10px 13px;font-weight:700}.delegation-actions .danger,.delegation-confirm .danger{color:#b52c2c;background:#fff0f0}.delegation-empty{padding:60px 24px;text-align:center;background:#fff;border-radius:24px}.delegation-empty h3{margin:12px 0 6px}.delegation-empty p{color:#929296}.delegation-detail-backdrop,.delegation-confirm-backdrop{position:fixed;inset:0;z-index:100;background:#17171b70;backdrop-filter:blur(8px);display:grid;place-items:center;padding:20px}.delegation-detail{background:#f3f3f4;border-radius:26px;width:min(720px,100%);max-height:min(760px,90vh);overflow:auto;padding:24px}.delegation-detail>header{display:flex;justify-content:space-between;gap:20px}.delegation-detail>header button{border:0;background:#e5e5e7;border-radius:50%;width:38px;height:38px}.delegation-outcome{background:#fff;border-radius:18px;padding:18px;margin:18px 0}.delegation-transcript{display:grid;gap:10px}.delegation-transcript>div{max-width:84%;padding:12px 15px;background:#fff;border-radius:16px}.delegation-transcript>div.outbound{justify-self:end;background:#f6dfff}.delegation-transcript small{color:#8f8f94}.delegation-confirm{width:min(440px,100%);background:#fff;border-radius:24px;padding:26px;text-align:center}.delegation-confirm h3{margin:12px 0 7px}.delegation-confirm p{color:#77777c}.delegation-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}.delegation-confirm .primary{background:#19191d;color:#fff}.delegation-card.skeleton{height:130px}.delegation-card.skeleton i,.delegation-card.skeleton span,.delegation-card.skeleton small{display:block;background:#ececef;border-radius:8px;animation:pulse 1.4s infinite}.delegation-card.skeleton i{width:80px;height:24px}.delegation-card.skeleton span{width:45%;height:18px}.delegation-card.skeleton small{width:25%;height:12px}@media(max-width:720px){.delegation-section>header{padding:18px}.delegation-card{align-items:stretch;flex-direction:column}.delegation-actions{justify-content:flex-end}.delegation-main p{white-space:normal}.email-section-nav{overflow-x:auto;scrollbar-width:none}.delegation-detail{padding:18px;border-radius:22px}.delegation-transcript>div{max-width:94%}}
+
+/* Keep communication views fluid when browser sidebars or narrow desktop panes are open. */
+.whatsapp-view,.delegation-section,.delegation-list,.delegation-card{width:100%;max-width:100%;min-width:0}
+.whatsapp-view{overflow-x:hidden}
+.delegation-actions{flex:0 0 auto;flex-wrap:wrap}

@@ -775,8 +775,9 @@ app.post("/api/integrations/whatsapp/webhook-secret", async (c) => {
   const current = await loadIntegrationSecret(c.env, "whatsapp") || {};
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   const secret = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES ('whatsapp', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(await sealJson({ ...current, webhookSecret: secret }, key)).run();
-  return c.json({ secret, endpoint: c.env.WHATSAPP_WEBHOOK_URL || `${new URL(c.req.url).origin}/webhooks/whatsapp/gowa`, signatureHeader: "X-Hub-Signature-256", note: "This secret is shown once. Configure GOWA to sign the raw webhook body with HMAC-SHA256." });
+  const endpoint = c.env.WHATSAPP_WEBHOOK_URL || `${new URL(c.req.url).origin}/webhooks/whatsapp/gowa`;
+  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES ('whatsapp', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(await sealJson({ ...current, webhookSecret: secret, webhookUrl: endpoint }, key)).run();
+  return c.json({ secret, endpoint, signatureHeader: "X-Hub-Signature-256", note: "Nudge registers this webhook automatically when a WhatsApp delegation starts." });
 });
 
 app.post("/api/delegations/prepare", async (c) => c.json(await prepareDelegation(await runtimeEnv(c.env), await jsonBody(c))));

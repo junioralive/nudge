@@ -73,6 +73,30 @@ async function request(env: Env, path: string, init: RequestInit = {}, timeoutMs
   }
 }
 
+export async function configureWhatsAppWebhook(env: Env, webhookUrl: string, webhookSecret: string) {
+  const config = whatsappConfig(env);
+  if (!config) throw new WhatsAppError("WhatsApp is not configured", 503);
+  const url = clean(webhookUrl, 1_000);
+  const secret = clean(webhookSecret, 500);
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error("invalid");
+  } catch {
+    throw new WhatsAppError("WhatsApp webhook URL is invalid", 400);
+  }
+  if (secret.length < 32) throw new WhatsAppError("WhatsApp webhook secret is invalid", 400);
+  await request(env, `/devices/${encodeURIComponent(config.deviceId)}/webhook`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      webhook_url: url,
+      webhook_secret: secret,
+      webhook_events: "message,message.ack",
+      webhook_insecure_skip_verify: false,
+    }),
+  });
+  return { configured: true, webhookUrl: url };
+}
+
 export async function getWhatsAppStatus(env: Env) {
   const result = await request(env, "/app/status");
   const value = result?.results || result?.result || result;
