@@ -9,7 +9,9 @@ import { configureWhatsAppWebhook, getWhatsAppMessages, resolveWhatsAppRecipient
 
 const encoder = new TextEncoder();
 const APPROVAL_SECONDS = 10 * 60;
-const GEMINI_MODEL = "gemini-3.1-flash-live-preview";
+// Delegations run as background text jobs. Keep the Live model exclusively for
+// the voice session; Flash-Lite supports generateContent and structured JSON.
+const GEMINI_MODEL = "gemini-3.1-flash-lite";
 const STATES = new Set(["prepared", "active", "paused", "needs-you", "completed", "expired", "stopped", "failed"]);
 const SOURCES = new Set(["whatsapp", "email"]);
 
