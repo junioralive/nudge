@@ -34,5 +34,6 @@ export async function runtimeEnv(env: Env): Promise<Env> {
     WHATSAPP_USERNAME: whatsapp?.username || env.WHATSAPP_USERNAME,
     WHATSAPP_PASSWORD: whatsapp?.password || env.WHATSAPP_PASSWORD,
     WHATSAPP_DEVICE_ID: whatsapp?.deviceId || env.WHATSAPP_DEVICE_ID,
+    WHATSAPP_WEBHOOK_SECRET: whatsapp?.webhookSecret || env.WHATSAPP_WEBHOOK_SECRET,
   };
 }

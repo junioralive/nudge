@@ -5,6 +5,7 @@ import { callEmailTool, consumeEmailApproval, createEmailApproval, readEmailRefe
 import { cancelAutomation, createAutomation, listAutomations, resolveEmailSchedule, retryAutomation } from "./automations";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
+import { getDelegation, listDelegations, pauseDelegation, prepareDelegation, resumeDelegation, startDelegation, stopDelegation } from "./delegations";
 import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval,
   createWhatsAppApproval, createWhatsAppForwardApproval, createWhatsAppScheduleApproval,
@@ -14,6 +15,26 @@ import {
 } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
+  {
+    name: "prepare_delegation",
+    description: "Prepare one bounded WhatsApp or email conversation delegation. Read back the exact recipient/thread, objective, duration, reply cap, and allowed context, then wait for explicit confirmation in a later turn before start_delegation. Delegations are not tasks or automations.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        source: { type: Type.STRING, enum: ["whatsapp", "email"] }, recipient: { type: Type.STRING }, jid: { type: Type.STRING },
+        accountId: { type: Type.STRING }, folder: { type: Type.STRING }, uid: { type: Type.NUMBER }, threadLabel: { type: Type.STRING },
+        objective: { type: Type.STRING }, duration_minutes: { type: Type.NUMBER }, max_replies: { type: Type.NUMBER },
+        allowed_context: { type: Type.ARRAY, items: { type: Type.STRING, enum: ["thread", "tasks", "calendar", "memories"] } },
+      },
+      required: ["source", "objective", "duration_minutes", "max_replies"],
+    },
+  },
+  { name: "start_delegation", description: "Start a prepared delegation only after the user explicitly confirms its exact read-back in a later turn.", parameters: { type: Type.OBJECT, properties: { approval: { type: Type.STRING } }, required: ["approval"] } },
+  { name: "list_delegations", description: "List bounded delegated conversations by source or status. These are separate from tasks and scheduled automations.", parameters: { type: Type.OBJECT, properties: { source: { type: Type.STRING, enum: ["whatsapp", "email"] }, status: { type: Type.STRING }, limit: { type: Type.NUMBER } } } },
+  { name: "get_delegation", description: "Inspect one delegation, including its encrypted audit transcript and outcome.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
+  { name: "pause_delegation", description: "Pause one active delegation immediately after the user asks.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
+  { name: "resume_delegation", description: "Resume a paused or needs-you delegation only after the user explicitly confirms resumption in this turn.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
+  { name: "stop_delegation", description: "Permanently stop one delegation after the user explicitly asks. It cannot be resumed.", parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] } },
   {
     name: "brief_whatsapp",
     description: "Return bounded recent inbound WhatsApp updates since the last successful Nudge briefing. Use for an explicit general briefing such as 'brief me', 'catch me up', or 'what did I miss', as well as an explicit WhatsApp briefing. This reads only recent inbound messages and never marks them read.",
@@ -387,6 +408,34 @@ function normalizeToolDue(value: unknown): string | null | undefined {
 }
 
 export async function runTool(env: Env, name: string, args: Record<string, any>): Promise<any> {
+  if (name === "prepare_delegation") {
+    try { return await prepareDelegation(env, args); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not prepare delegation" }; }
+  }
+  if (name === "start_delegation") {
+    try { return await startDelegation(env, args.approval); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not start delegation" }; }
+  }
+  if (name === "list_delegations") {
+    try { return await listDelegations(env, { source: args.source, status: args.status, limit: args.limit }); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not list delegations" }; }
+  }
+  if (name === "get_delegation") {
+    try { return await getDelegation(env, args.id); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not load delegation" }; }
+  }
+  if (name === "pause_delegation") {
+    try { return await pauseDelegation(env, args.id); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not pause delegation" }; }
+  }
+  if (name === "resume_delegation") {
+    try { return await resumeDelegation(env, args.id); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not resume delegation" }; }
+  }
+  if (name === "stop_delegation") {
+    try { return await stopDelegation(env, args.id); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not stop delegation" }; }
+  }
   if (name === "brief_whatsapp") {
     try {
       return await getWhatsAppBriefing(env, {

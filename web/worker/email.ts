@@ -156,6 +156,7 @@ export async function callEmailTool(env: Env, name: string, args: Record<string,
     case "email_search_all_accounts": return mail.searchAll(args as any);
     case "email_list_all_inbox_messages": return mail.listAllInboxes(args as any);
     case "email_get_message": return mail.getMessage(args.accountId as string | undefined, String(args.folder || "INBOX"), Number(args.uid));
+    case "email_get_thread": return mail.getThread(args.accountId as string | undefined, String(args.folder || "INBOX"), Number(args.uid), Math.min(Math.max(Number(args.limit) || 30, 1), 100));
     case "email_update_message_flags": return mail.mark(args.accountId as string | undefined, String(args.folder || "INBOX"), args.uid as number | number[], { seen: args.seen as boolean | undefined, flagged: args.flagged as boolean | undefined });
     case "email_archive_messages": return mail.archive(args.accountId as string | undefined, String(args.folder || "INBOX"), args.uid as number | number[]);
     case "email_create_message_draft": return mail.createDraft(args as any);

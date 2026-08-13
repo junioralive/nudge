@@ -3,7 +3,7 @@ import { BellRing, Brain, Check, Download, KeyRound, LoaderCircle, Mail, Message
 import { PlaybackQueue } from "../voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "../voice/connectionManager.ts";
 import { ASSISTANT_VOICES } from "../voice/voiceCatalog.js";
-import { downloadRecoveryKit, fetchIntegrations, removeIntegration, saveIntegration } from "../api.js";
+import { downloadRecoveryKit, fetchIntegrations, removeIntegration, rotateWhatsAppWebhookSecret, saveIntegration } from "../api.js";
 
 function availableTimezones(current) {
   const defaults = ["UTC", "Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Singapore", "Australia/Sydney"];
@@ -22,6 +22,7 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
   const [geminiKey, setGeminiKey] = useState("");
   const [microsoft, setMicrosoft] = useState({ clientId: "", clientSecret: "", tenant: "organizations" });
   const [whatsapp, setWhatsapp] = useState({ baseUrl: "", username: "", password: "", deviceId: "" });
+  const [webhookConfig, setWebhookConfig] = useState(null);
   const [recoveryKey, setRecoveryKey] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryReauthUrl, setRecoveryReauthUrl] = useState("");
@@ -164,6 +165,17 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
     finally { setSaving(false); }
   }
 
+  async function rotateWebhook() {
+    setSaving(true); setStatus(""); setWebhookConfig(null);
+    try {
+      const result = await rotateWhatsAppWebhookSecret();
+      setWebhookConfig(result);
+      setIntegrations((current) => ({ ...current, whatsapp: { ...(current.whatsapp || {}), configured: true, webhookConfigured: true } }));
+      setStatus("Webhook secret generated. Copy it now; it will not be shown again.");
+    } catch (error) { setStatus(error.message || "Could not generate webhook secret"); }
+    finally { setSaving(false); }
+  }
+
   const saveFooter = <footer className="settings-panel-footer">
     <span className={status.includes("saved") ? "success" : ""}>{status}</span>
     <button type="button" onClick={save} disabled={saving || !draft.name.trim()}>{saving ? "Saving…" : "Save changes"}</button>
@@ -245,6 +257,17 @@ export default function SettingsView({ authMode, profile, capabilities, onSave, 
               <label className="settings-field"><span>Password</span><input type="password" autoComplete="off" value={whatsapp.password} onChange={(event) => setWhatsapp({ ...whatsapp, password: event.target.value })} placeholder={integrations.whatsapp?.configured ? "Enter all values to replace connection" : "Bridge Basic Auth password"} /></label>
               <label className="settings-field"><span>Device ID</span><input autoComplete="off" value={whatsapp.deviceId} onChange={(event) => setWhatsapp({ ...whatsapp, deviceId: event.target.value })} placeholder="GOWA device ID" /></label>
               <div className="integration-settings-actions"><button type="button" onClick={() => configureIntegration("whatsapp")} disabled={saving || !whatsapp.baseUrl.trim() || !whatsapp.username.trim() || !whatsapp.password.trim() || !whatsapp.deviceId.trim()}>Save WhatsApp</button>{integrations.whatsapp?.configured && <button type="button" className="settings-secondary-btn" onClick={() => disconnectIntegration("whatsapp")} disabled={saving}>Remove</button>}</div>
+              {integrations.whatsapp?.configured && <div className="whatsapp-webhook-settings">
+                <div><strong>Delegated conversation webhook</strong><small>{integrations.whatsapp?.webhookConfigured ? "Configured" : "Generate a signing secret before enabling GOWA events."}</small></div>
+                <button type="button" className="settings-secondary-btn" onClick={rotateWebhook} disabled={saving}>{integrations.whatsapp?.webhookConfigured ? "Rotate secret" : "Generate secret"}</button>
+              </div>}
+              {webhookConfig && <div className="whatsapp-webhook-reveal">
+                <strong>Copy this configuration now</strong>
+                <p>The secret is shown only once. Configure GOWA to send <code>message</code> and <code>message.ack</code> events with this HMAC signature.</p>
+                <label><span>Webhook URL</span><code>{webhookConfig.endpoint}</code></label>
+                <label><span>Header</span><code>{webhookConfig.signatureHeader}</code></label>
+                <label><span>Secret</span><code>{webhookConfig.secret}</code></label>
+              </div>}
             </section>
             <section className="integration-settings-card">
               <div className="integration-settings-head"><span><Mail size={16} /><strong>Microsoft Outlook</strong></span><b className={integrations.microsoft?.configured ? "ready" : "off"}>{integrations.microsoft?.configured ? "Connected" : "Optional"}</b></div>

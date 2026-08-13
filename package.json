@@ -85,6 +85,9 @@
       },
       "WHATSAPP_DEVICE_ID": {
         "description": "Optional GOWA linked device ID. Stored encrypted when entered in Settings."
+      },
+      "WHATSAPP_WEBHOOK_URL": {
+        "description": "Optional public signed-webhook URL. Use the workers.dev endpoint when Cloudflare Access protects the custom domain and no path bypass is configured."
       }
     }
   }

@@ -69,6 +69,7 @@ import { sealJson } from "./email-core/crypto";
 import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./integrationSecrets";
 import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
 import { addCalendarSource, deleteCalendarSource, listCalendarEvents, listCalendarSources, syncCalendarSource } from "./calendar";
+import { DelegationError, getDelegation, handleWhatsAppWebhook, listDelegations, pauseDelegation, prepareDelegation, processDelegations, resumeDelegation, startDelegation, stopDelegation } from "./delegations";
 import {
   consumeWhatsAppApproval,
   consumeWhatsAppScheduleApproval,
@@ -745,7 +746,8 @@ app.post("/api/integrations/:provider", async (c) => {
   const body = await jsonBody<Record<string, unknown>>(c);
   const payload = Object.fromEntries(Object.entries(body).filter(([name, value]) => typeof value === "string" && value.trim()).map(([name, value]) => [name, String(value).trim()]));
   if (!Object.keys(payload).length) return c.json({ error: "at least one value is required" }, 400);
-  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(provider, await sealJson(payload, key)).run();
+  const current = await loadIntegrationSecret(c.env, provider).catch(() => null) || {};
+  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(provider, await sealJson({ ...current, ...payload }, key)).run();
   return c.json({ configured: true });
 });
 
@@ -763,9 +765,35 @@ app.get("/api/integrations", async (c) => {
   return c.json({
     gemini: { configured: Boolean(gemini?.apiKey || c.env.GEMINI_API_KEY) },
     microsoft: { configured: Boolean((microsoft?.clientId || c.env.OUTLOOK_CLIENT_ID) && (microsoft?.clientSecret || c.env.OUTLOOK_CLIENT_SECRET)) },
-    whatsapp: { configured: Boolean((whatsapp?.baseUrl || c.env.WHATSAPP_BASE_URL) && (whatsapp?.password || c.env.WHATSAPP_PASSWORD) && (whatsapp?.deviceId || c.env.WHATSAPP_DEVICE_ID)) },
+    whatsapp: { configured: Boolean((whatsapp?.baseUrl || c.env.WHATSAPP_BASE_URL) && (whatsapp?.password || c.env.WHATSAPP_PASSWORD) && (whatsapp?.deviceId || c.env.WHATSAPP_DEVICE_ID)), webhookConfigured: Boolean(whatsapp?.webhookSecret || c.env.WHATSAPP_WEBHOOK_SECRET) },
   });
 });
+
+app.post("/api/integrations/whatsapp/webhook-secret", async (c) => {
+  const key = integrationEncryptionKey(c.env);
+  if (!key) return c.json({ error: "encryption is not configured" }, 503);
+  const current = await loadIntegrationSecret(c.env, "whatsapp") || {};
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const secret = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  await c.env.DB.prepare("INSERT INTO integration_secrets (provider, encrypted_payload, updated_at) VALUES ('whatsapp', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) ON CONFLICT(provider) DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at").bind(await sealJson({ ...current, webhookSecret: secret }, key)).run();
+  return c.json({ secret, endpoint: c.env.WHATSAPP_WEBHOOK_URL || `${new URL(c.req.url).origin}/webhooks/whatsapp/gowa`, signatureHeader: "X-Hub-Signature-256", note: "This secret is shown once. Configure GOWA to sign the raw webhook body with HMAC-SHA256." });
+});
+
+app.post("/api/delegations/prepare", async (c) => c.json(await prepareDelegation(await runtimeEnv(c.env), await jsonBody(c))));
+app.post("/api/delegations/start", async (c) => {
+  const body = await jsonBody<{ approval?: string; confirmed?: boolean }>(c);
+  if (!body.confirmed) return c.json({ error: "explicit confirmation is required" }, 409);
+  return c.json(await startDelegation(await runtimeEnv(c.env), body.approval || ""));
+});
+app.get("/api/delegations", async (c) => c.json(await listDelegations(c.env, { source: c.req.query("source") || undefined, status: c.req.query("status") || undefined, limit: Number(c.req.query("limit")) || undefined })));
+app.get("/api/delegations/:id", async (c) => c.json(await getDelegation(c.env, c.req.param("id"))));
+app.post("/api/delegations/:id/pause", async (c) => c.json(await pauseDelegation(c.env, c.req.param("id"), "Paused by user")));
+app.post("/api/delegations/:id/resume", async (c) => {
+  const body = await jsonBody<{ confirmed?: boolean }>(c);
+  if (!body.confirmed) return c.json({ error: "explicit confirmation is required to resume" }, 409);
+  return c.json(await resumeDelegation(c.env, c.req.param("id")));
+});
+app.post("/api/delegations/:id/stop", async (c) => c.json(await stopDelegation(c.env, c.req.param("id"))));
 
 app.post("/api/bootstrap", async (c) => {
   const existing = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'name'").first();
@@ -1015,7 +1043,7 @@ Calendar is read-only operational schedule data. Use list_calendar_events when t
 
 A general briefing request such as "brief me", "catch me up", or "what did I miss" explicitly authorizes a read-only briefing across configured operational sources. Include open/overdue tasks, today's calendar, header-only email updates, and WhatsApp updates. Call brief_whatsapp for the WhatsApp portion; it reports inbound updates since the previous successful Nudge briefing and does not mark them read. Keep the final briefing concise, group it by source, and clearly mention any configured source that was unavailable.
 
-WhatsApp is private operational data. Outside an explicit general briefing, use WhatsApp tools only when the user explicitly asks about WhatsApp, a contact, group, chat, or message action. Searching contacts, listing chats, and listing groups do not permit reading messages. Read or search messages only after explicit intent and use the narrowest chat, date, sender, text, or media filter available. You may mark read, star, unstar, archive, unarchive, pin, unpin, or react only when the user explicitly requests that exact action; never guess a reaction. To send, forward, or schedule, first call the matching prepare tool, clearly read back the exact recipient, content, and for schedules the exact date, time, and timezone, then ask one short confirmation question. Wait for a later user turn containing an explicit yes, confirm, send, or schedule before calling the matching final action. Never prepare and execute in the same turn. Scheduled WhatsApp messages are Automations, never Tasks. Use list_automations when asked what is scheduled today or upcoming, and cancel_automation only after an explicit cancellation request. After an action, state whether it succeeded. Do not require the user to open the WhatsApp screen. Autonomous conversations, message deletion, revocation, editing, group administration, device control, media download, and call control are unavailable by design. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
+WhatsApp and Email are private operational data. Outside an explicit general briefing, use their tools only when the user explicitly asks. For one bounded delegated conversation, call prepare_delegation, read back the exact recipient or email thread, objective, duration, reply cap, and allowed context, then wait for a later explicit confirmation before start_delegation. Delegations are never tasks or scheduled automations. They are limited to direct text WhatsApp chats or one selected email thread. Money, pricing, refunds, legal commitments, account recovery, credentials, OTPs, attachments, irreversible actions, ambiguity, or material uncertainty must pause and escalate to the user. Use list_delegations/get_delegation for status; pause, resume, or stop only when explicitly requested, and require explicit confirmation before resuming a needs-you delegation. Do not save delegated conversations to Memories. For ordinary sending, forwarding, and scheduling, keep the existing prepare/read-back/later-confirm flow. Scheduled messages are Automations, never Tasks. Message deletion, group administration, device control, autonomous media handling, and call control remain unavailable.`;
 }
 
 app.post("/api/voice-token", async (c) => {
@@ -1090,6 +1118,7 @@ app.post("/api/voice/tool", async (c) => {
 
 app.onError((error, c) => {
   if (error instanceof SecondBrainError) return c.json({ error: error.message }, error.status as any);
+  if (error instanceof DelegationError) return c.json({ error: error.message }, error.status as any);
   console.error("request_failed", { path: c.req.path, error: error.name });
   return c.json({ error: "internal error" }, 500);
 });
@@ -1103,6 +1132,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const resolvedEnv = await runtimeEnv(env);
     const pathname = new URL(request.url).pathname;
+    if (pathname === "/webhooks/whatsapp/gowa" && request.method === "POST") return handleWhatsAppWebhook(request, resolvedEnv, ctx);
     const oauthResponse = await handleKeyOAuthRequest(request, resolvedEnv);
     if (oauthResponse) return oauthResponse;
     if (pathname === "/email/mcp" || pathname.startsWith("/email/mcp/")) {
@@ -1130,6 +1160,7 @@ export default {
     ctx.waitUntil(runtimeEnv(env).then((resolvedEnv) => Promise.all([
       processDueReminders(resolvedEnv),
       processDueAutomations(resolvedEnv),
+      processDelegations(resolvedEnv),
     ])).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowLeft, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
+import { Archive, ArrowLeft, Bot, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
   addEmailAccount,
@@ -16,6 +16,7 @@ import {
 } from "../api.js";
 import EmailDraftDialog from "./EmailDraftDialog.jsx";
 import AutomationList from "./AutomationList.jsx";
+import DelegationList from "./DelegationList.jsx";
 
 function formattedDate(value) {
   if (!value) return "";
@@ -51,6 +52,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   const [actionBusy, setActionBusy] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [automationsOpen, setAutomationsOpen] = useState(false);
+  const [delegationsOpen, setDelegationsOpen] = useState(false);
   const [accountView, setAccountView] = useState("list");
   const [accountProvider, setAccountProvider] = useState("");
   const [accountForm, setAccountForm] = useState(EMPTY_ACCOUNT);
@@ -212,6 +214,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   function openAccountManager() {
     setAccountsOpen(true);
     setAutomationsOpen(false);
+    setDelegationsOpen(false);
     setAccountView(accounts.length ? "list" : "providers");
     setAccountProvider("");
     setEditingAccountId("");
@@ -222,6 +225,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   function closeAccountManager() {
     setAccountsOpen(false);
     setAutomationsOpen(false);
+    setDelegationsOpen(false);
     setAccountStatus("");
     setEditingAccountId("");
   }
@@ -323,12 +327,13 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   return <section className="email-view">
     {!selected && <>
     <nav className="email-section-nav" aria-label="Email sections">
-      <button type="button" className={!accountsOpen && !automationsOpen ? "active" : ""} onClick={closeAccountManager}><Inbox size={16} />Inbox</button>
+      <button type="button" className={!accountsOpen && !automationsOpen && !delegationsOpen ? "active" : ""} onClick={closeAccountManager}><Inbox size={16} />Inbox</button>
       <button type="button" className={accountsOpen ? "active" : ""} onClick={openAccountManager}><SquareCheckBig size={16} />Accounts<span>{accounts.length}</span></button>
-      <button type="button" className={automationsOpen ? "active" : ""} onClick={() => { setAccountsOpen(false); setAutomationsOpen(true); }}><CalendarClock size={16} />Automations</button>
+      <button type="button" className={automationsOpen ? "active" : ""} onClick={() => { setAccountsOpen(false); setDelegationsOpen(false); setAutomationsOpen(true); }}><CalendarClock size={16} />Automations</button>
+      <button type="button" className={delegationsOpen ? "active" : ""} onClick={() => { setAccountsOpen(false); setAutomationsOpen(false); setDelegationsOpen(true); }}><Bot size={16} />Delegated</button>
     </nav>
 
-    {!accountsOpen && !automationsOpen ? <>
+    {!accountsOpen && !automationsOpen && !delegationsOpen ? <>
     <div className="email-overview">
       <div><Inbox size={18} /><span><strong>{summary.total}</strong><small>Inbox messages</small></span></div>
       <div><Circle size={18} /><span><strong>{unread}</strong><small>Unread in view</small></span></div>
@@ -402,7 +407,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
         </form>}
         {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
       </div>
-    </section> : <AutomationList source="email" />}
+    </section> : automationsOpen ? <AutomationList source="email" /> : <DelegationList source="email" />}
     </>}
 
     {selected && <section className="email-message-layer" aria-labelledby="email-message-title">

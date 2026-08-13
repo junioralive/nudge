@@ -1,7 +1,8 @@
-import { ArrowLeft, CalendarClock, Check, Inbox, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
+import { ArrowLeft, Bot, CalendarClock, Check, Inbox, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchWhatsAppChats, fetchWhatsAppMessages, fetchWhatsAppStatus, prepareWhatsAppMessage, sendWhatsAppMessage } from "../api.js";
 import AutomationList from "./AutomationList.jsx";
+import DelegationList from "./DelegationList.jsx";
 
 function time(value) {
   if (!value) return "";
@@ -72,10 +73,11 @@ export default function WhatsAppView() {
     {!selected && <nav className="email-section-nav communication-section-nav" aria-label="WhatsApp sections">
       <button type="button" className={section === "chats" ? "active" : ""} onClick={() => setSection("chats")}><Inbox size={16} />Chats</button>
       <button type="button" className={section === "automations" ? "active" : ""} onClick={() => setSection("automations")}><CalendarClock size={16} />Automations</button>
+      <button type="button" className={section === "delegated" ? "active" : ""} onClick={() => setSection("delegated")}><Bot size={16} />Delegated</button>
     </nav>}
 
     {error && <div className="whatsapp-error" role="alert">{error}</div>}
-    {!selected && section === "automations" ? <AutomationList source="whatsapp" /> : !selected ? <>
+    {!selected && section === "automations" ? <AutomationList source="whatsapp" /> : !selected && section === "delegated" ? <DelegationList source="whatsapp" /> : !selected ? <>
       <form className="whatsapp-search" onSubmit={(e) => { e.preventDefault(); loadChats(); }}>
         <Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search chats" /><button>Search</button>
       </form>

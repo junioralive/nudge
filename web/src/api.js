@@ -327,3 +327,14 @@ export function importMemoriesBackup(payload, offset = 0, edgeOffset = 0, limit 
 
 export function fetchMemoryReindexStatus() { return apiFetch("/api/memories/reindex"); }
 export function reindexMemoriesBatch() { return apiFetch("/api/memories/reindex", { method: "POST" }); }
+
+export function fetchDelegations(source) {
+  const params = new URLSearchParams();
+  if (source) params.set("source", source);
+  return apiFetch(`/api/delegations?${params}`);
+}
+export function fetchDelegation(id) { return apiFetch(`/api/delegations/${encodeURIComponent(id)}`); }
+export function pauseDelegation(id) { return apiFetch(`/api/delegations/${encodeURIComponent(id)}/pause`, { method: "POST" }); }
+export function resumeDelegation(id) { return apiFetch(`/api/delegations/${encodeURIComponent(id)}/resume`, { method: "POST", body: JSON.stringify({ confirmed: true }) }); }
+export function stopDelegation(id) { return apiFetch(`/api/delegations/${encodeURIComponent(id)}/stop`, { method: "POST" }); }
+export function rotateWhatsAppWebhookSecret() { return apiFetch("/api/integrations/whatsapp/webhook-secret", { method: "POST" }); }

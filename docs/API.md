@@ -34,3 +34,11 @@ WhatsApp endpoints are available only when the private GOWA bridge URL, Basic Au
 The prepare endpoint returns a signed approval for the exact recipient and message. Sending requires that unused approval plus `X-Confirm-Send: true`; approvals expire after ten minutes. WhatsApp has no public MCP endpoint in this release.
 
 Remote MCP endpoints are `POST /email/mcp` and `POST /memories/mcp`. Access mode uses Cloudflare Managed OAuth. Key mode publishes OAuth discovery, dynamic registration, authorization-code + PKCE, token, refresh, and revocation endpoints under `/.well-known/*` and `/oauth/*`. Email and Memories scopes are separate.
+# Delegated conversations
+
+- `POST /api/delegations/prepare` validates a WhatsApp recipient or exact email thread and returns a one-time confirmation receipt.
+- `POST /api/delegations/start` activates that receipt after explicit confirmation.
+- `GET /api/delegations` lists source/status-filtered delegations without exposing ciphertext.
+- `GET /api/delegations/:id` returns the decrypted audit view to the authenticated owner.
+- `POST /api/delegations/:id/pause`, `/resume`, and `/stop` control a bounded session.
+- `POST /webhooks/whatsapp/gowa` is outside browser authentication and requires a valid `X-Hub-Signature-256` HMAC signature.

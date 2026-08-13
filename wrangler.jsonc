@@ -19,6 +19,7 @@
       "/api/*",
       "/.well-known/*",
       "/oauth/*",
+      "/webhooks/whatsapp/gowa",
       "/email/mcp",
       "/email/mcp/*",
       "/memories/mcp",

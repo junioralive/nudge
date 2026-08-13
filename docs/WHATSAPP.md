@@ -95,6 +95,7 @@ The in-app Settings flow is preferred because it is easier to replace or remove 
 | Ask the assistant | Lists or reads WhatsApp only after an explicit WhatsApp request. |
 | Compose | Creates a visible preview; the assistant cannot send it. |
 | Send | Requires a single-use confirmation bound to the exact recipient and text. |
+| Delegate | Continues one confirmed one-to-one text conversation for at most 60 minutes and 20 replies. |
 | Contacts | Searches GOWA's synced address book, including contacts without chat history. |
 | Message search | Filters one explicitly selected chat by text, date, sender, or media. |
 | Groups | Lists groups and reads group details or participants without changing membership. |
@@ -102,7 +103,17 @@ The in-app Settings flow is preferred because it is easier to replace or remove 
 | Chat state | Archives, unarchives, pins, or unpins only after an explicit instruction. |
 | Forward | Requires a single-use confirmation bound to the source message and destination. |
 
-Approvals expire after ten minutes and cannot be replayed. During a voice call, Nudge reads back the exact recipient and message, asks once, and sends immediately when the user explicitly confirms in the next turn. No separate WhatsApp-screen approval is required. Nudge does not poll WhatsApp in the background, run WhatsApp from Cron, save chats to D1, cache message bodies in the service worker, or add messages to Memories automatically. There is no WhatsApp MCP endpoint in this release.
+Approvals expire after ten minutes and cannot be replayed. During a voice call, Nudge reads back the exact recipient and message, asks once, and sends immediately when the user explicitly confirms in the next turn. No separate WhatsApp-screen approval is required.
+
+### Delegated conversations
+
+After saving the bridge, use **Settings → Integrations → WhatsApp bridge → Generate secret**. Copy the one-time values into the GOWA webhook configuration and enable `message` and `message.ack` events. GOWA must send the HMAC-SHA256 digest of the raw request body in `X-Hub-Signature-256` (with or without the `sha256=` prefix).
+
+When Cloudflare Access is active, rerun `npm run setup:cloudflare` after updating. Setup creates a narrowly scoped **Bypass** application only for `/webhooks/whatsapp/gowa`; all other Nudge routes remain owner-authenticated. The webhook itself rejects unsigned, replayed, duplicate, group, wrong-device, and unrelated-chat events.
+
+If Access cannot be updated, set `WHATSAPP_WEBHOOK_URL` to `https://<worker>.<subdomain>.workers.dev/webhooks/whatsapp/gowa`. This public route still requires the one-time HMAC secret and does not expose browser APIs.
+
+Nudge stores delegated objectives, conversation events, generated replies, and outcomes encrypted in D1 for the audit view. It does not add them to Memories. It pauses on media, manual takeover, consequential commitments, uncertainty, or Gemini/integration failure. Normal on-demand chats are still fetched live and are not cached or stored.
 
 Nudge intentionally does not expose GOWA's device logout, message deletion/revocation, message editing, group administration, remote media download, or call-control tools. Those operations have a larger destructive or account-security impact than a private assistant needs.
 

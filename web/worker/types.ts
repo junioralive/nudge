@@ -35,6 +35,8 @@ export interface Env {
   WHATSAPP_USERNAME?: string;
   WHATSAPP_PASSWORD?: string;
   WHATSAPP_DEVICE_ID?: string;
+  WHATSAPP_WEBHOOK_SECRET?: string;
+  WHATSAPP_WEBHOOK_URL?: string;
 }
 
 export interface TaskRow {

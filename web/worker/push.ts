@@ -148,3 +148,13 @@ export async function recordDeviceResult(
     ).bind(result.error, endpoint).run();
   }
 }
+
+export async function sendAppPush(env: Env, payload: PushPayload): Promise<void> {
+  const devices = await env.DB.prepare(
+    "SELECT * FROM push_subscriptions WHERE disabled_at IS NULL ORDER BY last_seen_at DESC",
+  ).all<PushSubscriptionRow>();
+  await Promise.all((devices.results || []).map(async (device) => {
+    const result = await sendToSubscription(env, device.subscription_json, payload);
+    await recordDeviceResult(env, device.endpoint, result);
+  }));
+}

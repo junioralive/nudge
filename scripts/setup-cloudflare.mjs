@@ -329,6 +329,22 @@ async function ensureAccessApplication(token, accountId, hostname, domains, type
   return aud;
 }
 
+async function ensureWebhookBypassApplication(token, accountId, hostname) {
+  const label = "Nudge WhatsApp Webhook";
+  const destination = `${hostname}/webhooks/whatsapp/gowa`;
+  const apps = await accessApi(token, accountId, "GET", "/access/apps");
+  let app = (Array.isArray(apps) ? apps : []).find((candidate) => candidate.name === label);
+  const body = { name: label, domain: destination, destinations: [{ type: "public", uri: destination }], type: "self_hosted", session_duration: "24h" };
+  app = app
+    ? await accessApi(token, accountId, "PUT", `/access/apps/${app.id}`, body)
+    : await accessApi(token, accountId, "POST", "/access/apps", body);
+  const policies = await accessApi(token, accountId, "GET", `/access/apps/${app.id}/policies`);
+  const policyBody = { name: "Nudge Signed Webhook", decision: "bypass", include: [{ everyone: {} }] };
+  const policy = (Array.isArray(policies) ? policies : []).find((candidate) => candidate.name === policyBody.name);
+  if (policy) await accessApi(token, accountId, "PUT", `/access/apps/${app.id}/policies/${policy.id}`, policyBody);
+  else await accessApi(token, accountId, "POST", `/access/apps/${app.id}/policies`, policyBody);
+}
+
 function sqlString(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
@@ -425,6 +441,7 @@ async function main() {
       "Nudge",
     );
     config.vars.NUDGE_ACCESS_AUD = nudgeAud;
+    await ensureWebhookBypassApplication(apiToken, accountId, hostname);
   }
   config.routes = finalRoutes;
   delete config.keep_vars;
