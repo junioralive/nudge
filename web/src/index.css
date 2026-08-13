@@ -1272,6 +1272,26 @@ button {
 .workspace-dialog-actions button.danger { background: #8b2222; color: white; }
 .workspace-dialog-actions button:disabled { opacity: .45; cursor: default; }
 
+.task-delete-overlay { position: fixed; inset: 0; z-index: 270; display: grid; place-items: center; padding: 20px; background: rgba(23,23,26,.34); backdrop-filter: blur(12px); animation: settings-backdrop-in .18s ease both; }
+.task-delete-dialog { width: min(100%, 410px); display: grid; gap: 20px; padding: 22px; border: 1px solid rgba(255,255,255,.9); border-radius: 22px; background: var(--surface); box-shadow: 0 24px 70px rgba(58,15,82,.18); animation: settings-dialog-in .24s cubic-bezier(.2,.8,.2,1) both; }
+.task-delete-dialog header { display: flex; align-items: center; justify-content: space-between; }
+.task-delete-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: #fff0f0; color: #9d2929; }
+.task-delete-dialog header > button { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg); color: var(--ink-soft); cursor: pointer; }
+.task-delete-copy h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -.03em; }
+.task-delete-copy p { margin: 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.task-delete-error { margin: -8px 0 0; color: #9d2929; font-size: 11.5px; font-weight: 650; }
+.task-delete-dialog footer { display: flex; justify-content: flex-end; gap: 9px; }
+.task-delete-dialog footer button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 15px; border: 0; border-radius: 11px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.task-delete-dialog footer .cancel { background: var(--bg); color: var(--ink); }
+.task-delete-dialog footer .danger { background: #8b2222; color: white; }
+.task-delete-dialog button:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 600px) {
+  .task-delete-overlay { align-items: end; padding: 12px; }
+  .task-delete-dialog { width: 100%; box-sizing: border-box; border-radius: 22px; }
+  .task-delete-dialog footer { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
 /* Workspace select in add-form */
 .workspace-select {
   border: none;

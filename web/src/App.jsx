@@ -44,6 +44,7 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import TaskEditor from "./components/TaskEditor.jsx";
 import SettingsView from "./components/SettingsView.jsx";
 import WorkspaceDialog from "./components/WorkspaceDialog.jsx";
+import DeleteTaskDialog from "./components/DeleteTaskDialog.jsx";
 import EmailDraftDialog from "./components/EmailDraftDialog.jsx";
 import { PlaybackQueue } from "./voice/playbackQueue.ts";
 import { VoiceConnectionManager } from "./voice/connectionManager.ts";
@@ -119,6 +120,7 @@ function NudgeApp({ authMode, onLogout }) {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [editingTask, setEditingTask] = useState(null);
+  const [deletingTask, setDeletingTask] = useState(null);
   const [emailDraft, setEmailDraft] = useState(null);
   const [onboardingRequired, setOnboardingRequired] = useState(false);
   const addInputRef = useRef(null);
@@ -275,14 +277,9 @@ function NudgeApp({ authMode, onLogout }) {
   }
 
   async function handleDeleteCompleted(task) {
-    if (!window.confirm(`Permanently delete “${task.text}”?`)) return;
-    try {
-      await deleteTask(task.id);
-      await refresh();
-      setEditingTask((current) => current?.id === task.id ? null : current);
-    } catch (error) {
-      setLoadError(error.message);
-    }
+    await deleteTask(task.id);
+    await refresh();
+    setEditingTask((current) => current?.id === task.id ? null : current);
   }
 
   async function handleEnableNotifications() {
@@ -391,7 +388,7 @@ function NudgeApp({ authMode, onLogout }) {
             {showAddForm && <AddTaskForm inputRef={addInputRef} onAdd={handleAdd} workspaces={workspaces} defaultWorkspace={defaultWorkspace} />}
             <div className="agenda-col"><AgendaHeader completed={tab === "completed"} sortByDue={sortByDue} onToggleSort={() => setSortByDue((state) => !state)} />
               {tab === "completed"
-                ? <CompletedTaskList tasks={visible} onEdit={(task) => setEditingTask(task)} onDelete={handleDeleteCompleted} />
+                ? <CompletedTaskList tasks={visible} onEdit={(task) => setEditingTask(task)} onDelete={setDeletingTask} />
                 : <TaskList tasks={visible} onComplete={handleComplete} onEdit={(task) => setEditingTask(task)} />}</div>
           </>}
       </div></div>
@@ -400,6 +397,7 @@ function NudgeApp({ authMode, onLogout }) {
       {voiceOpen && <Suspense fallback={null}><VoicePanel onClose={() => setVoiceOpen(false)} onTaskChange={refresh} activeWorkspace={activeWorkspace} /></Suspense>}
       {editingTask && <TaskEditor task={editingTask} workspaces={workspaces} onClose={() => setEditingTask(null)} onSave={async (values) => { await handleEdit(editingTask, values); setEditingTask(null); }} />}
       {workspaceDialog && <WorkspaceDialog dialog={workspaceDialog} currentColor={workspaceColors[workspaceDialog.workspace]} onClose={() => setWorkspaceDialog(null)} onConfirm={handleWorkspaceDialogConfirm} />}
+      {deletingTask && <DeleteTaskDialog task={deletingTask} onClose={() => setDeletingTask(null)} onConfirm={handleDeleteCompleted} />}
       {emailDraft && <EmailDraftDialog initial={emailDraft} onClose={() => setEmailDraft(null)} />}
       {onboardingRequired && <OnboardingDialog initial={profile} capabilities={capabilities} onComplete={finishOnboarding} />}
     </div>
