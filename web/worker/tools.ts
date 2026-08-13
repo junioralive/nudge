@@ -1,14 +1,15 @@
 import { Type, type FunctionDeclaration } from "@google/genai";
 import { addTask, completeTask, deleteTask, isTodayInTimezone, listTasks, publicTask, updateTask } from "./data";
 import { captureMemory, listRecentMemories, recallMemories } from "./secondBrain";
-import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
+import { callEmailTool, consumeEmailApproval, createEmailApproval, readEmailReference, safeEmailAccounts, safeEmailList, safeEmailMessage } from "./email";
+import { cancelAutomation, createAutomation, listAutomations, resolveEmailSchedule, retryAutomation } from "./automations";
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
 import {
-  cancelScheduledWhatsAppMessage, consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval,
+  consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval,
   createWhatsAppApproval, createWhatsAppForwardApproval, createWhatsAppScheduleApproval,
   forwardWhatsAppMessage, getWhatsAppBriefing, getWhatsAppGroup, getWhatsAppMessages, listWhatsAppChats, listWhatsAppGroups,
-  listScheduledWhatsAppMessages, resolveWhatsAppRecipient, scheduleWhatsAppMessage, searchWhatsAppContacts, sendWhatsAppMessage,
+  resolveWhatsAppRecipient, searchWhatsAppContacts, sendWhatsAppMessage,
   updateWhatsAppChat, updateWhatsAppMessage,
 } from "./whatsapp";
 
@@ -127,13 +128,18 @@ export const toolDeclarations: FunctionDeclaration[] = [
   },
   {
     name: "list_automations",
-    description: "List WhatsApp automations and their pending, sent, failed, or cancelled state. Use when the user asks what is scheduled today or upcoming, or asks whether an automation ran.",
-    parameters: { type: Type.OBJECT, properties: { limit: { type: Type.NUMBER } } },
+    description: "List WhatsApp and email automations with source, date, and status filters. Automations are not tasks.",
+    parameters: { type: Type.OBJECT, properties: { source: { type: Type.STRING, enum: ["whatsapp", "email", "all"] }, status: { type: Type.STRING }, from: { type: Type.STRING }, to: { type: Type.STRING }, limit: { type: Type.NUMBER } } },
   },
   {
     name: "cancel_automation",
     description: "Cancel one known pending or failed automation after the user explicitly asks to cancel it. Obtain its ID with list_automations when needed.",
-    parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] },
+    parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER }, source: { type: Type.STRING, enum: ["whatsapp", "email"] } }, required: ["id"] },
+  },
+  {
+    name: "retry_automation",
+    description: "Manually retry one failed or delivery-unknown automation only after the user explicitly requests it. Warn that delivery-unknown email may already have been sent.",
+    parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER }, source: { type: Type.STRING, enum: ["whatsapp", "email"] } }, required: ["id"] },
   },
   {
     name: "prepare_whatsapp_forward",
@@ -215,6 +221,22 @@ export const toolDeclarations: FunctionDeclaration[] = [
       },
       required: ["text"],
     },
+  },
+  {
+    name: "prepare_email_schedule",
+    description: "Prepare an exact plain-text email and future delivery time for confirmation. Read back sending account, To, Cc, Bcc, subject, body, date, time, and timezone. Wait for explicit confirmation in a later turn before schedule_email.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        accountId: { type: Type.STRING }, to: { type: Type.ARRAY, items: { type: Type.STRING } }, cc: { type: Type.ARRAY, items: { type: Type.STRING } }, bcc: { type: Type.ARRAY, items: { type: Type.STRING } }, subject: { type: Type.STRING }, body: { type: Type.STRING }, scheduled_at: { type: Type.STRING, description: "Future ISO 8601 datetime with an explicit timezone offset." },
+      },
+      required: ["to", "subject", "body", "scheduled_at"],
+    },
+  },
+  {
+    name: "schedule_email",
+    description: "Create the previously prepared email automation after explicit confirmation in a later user turn. This is an automation, not a task.",
+    parameters: { type: Type.OBJECT, properties: { approval: { type: Type.STRING } }, required: ["approval"] },
   },
   {
     name: "create_task_from_email",
@@ -465,18 +487,21 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
     if (!args.approval) return { ok: false, error: "approval is required" };
     try {
       const approved = await consumeWhatsAppScheduleApproval(env, String(args.approval));
-      return { ok: true, automation: await scheduleWhatsAppMessage(env, approved) };
+      return { ok: true, automation: await createAutomation(env, "whatsapp_message", { jid: approved.jid, message: approved.message, recipient: approved.recipient }, approved.scheduledAt) };
     } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not schedule WhatsApp message" }; }
   }
   if (name === "list_automations") {
     try {
-      const result = await listScheduledWhatsAppMessages(env, Math.min(Number(args.limit) || 25, 100));
-      return { automations: result.schedules.map((item) => ({ ...item, type: "whatsapp" })) };
+      return await listAutomations(env, { source: args.source === "all" ? undefined : String(args.source || ""), status: args.status ? String(args.status) : undefined, from: args.from ? String(args.from) : undefined, to: args.to ? String(args.to) : undefined, limit: Math.min(Number(args.limit) || 25, 100) });
     } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not list automations" }; }
   }
   if (name === "cancel_automation") {
-    try { return { ok: true, ...(await cancelScheduledWhatsAppMessage(env, args.id)) }; }
+    try { return { ok: true, ...(await cancelAutomation(env, args.id, args.source ? String(args.source) : undefined)) }; }
     catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not cancel automation" }; }
+  }
+  if (name === "retry_automation") {
+    try { return { ok: true, ...(await retryAutomation(env, args.id, args.source ? String(args.source) : undefined)) }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not retry automation" }; }
   }
   if (name === "prepare_whatsapp_forward") {
     if (!args.messageId) return { ok: false, error: "messageId is required" };
@@ -577,6 +602,20 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
         replyAll: Boolean(args.replyAll),
       },
     };
+  }
+  if (name === "prepare_email_schedule") {
+    try {
+      const preview = await resolveEmailSchedule(env, args);
+      return { ok: true, requires_confirmation: true, approval: await createEmailApproval(env, "schedule-send", preview), automation: preview };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not prepare email automation" }; }
+  }
+  if (name === "schedule_email") {
+    if (!args.approval) return { ok: false, error: "approval is required" };
+    try {
+      const approved = await consumeEmailApproval(env, String(args.approval), "schedule-send");
+      const payload = await resolveEmailSchedule(env, approved);
+      return { ok: true, automation: await createAutomation(env, "email_message", { accountId: payload.accountId, accountName: payload.accountName, to: payload.to, cc: payload.cc, bcc: payload.bcc, subject: payload.subject, body: payload.body }, payload.scheduledAt) };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not schedule email" }; }
   }
   if (name === "create_task_from_email") {
     if (!args.ref || !args.title?.trim()) return { ok: false, error: "ref and title are required" };

@@ -62,6 +62,7 @@ import { clearOauthCookie, emailService, emailStore, finishOutlookOAuth, outlook
 import { emailMcpHandler, MyMCP } from "./email-core/mcp";
 import { memoriesMcpHandler, MemoriesMCP } from "./memoriesMcp";
 import { runTool, toolDeclarations } from "./tools";
+import { AutomationError, cancelAutomation, createAutomation, listAutomations, processDueAutomations, resolveEmailSchedule, retryAutomation } from "./automations";
 import type { AppBindings, Env } from "./types";
 import { ASSISTANT_VOICE_NAMES } from "../src/voice/voiceCatalog.js";
 import { sealJson } from "./email-core/crypto";
@@ -69,17 +70,13 @@ import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./i
 import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
 import { addCalendarSource, deleteCalendarSource, listCalendarEvents, listCalendarSources, syncCalendarSource } from "./calendar";
 import {
-  cancelScheduledWhatsAppMessage,
   consumeWhatsAppApproval,
   consumeWhatsAppScheduleApproval,
   createWhatsAppApproval,
   createWhatsAppScheduleApproval,
   getWhatsAppMessages,
   getWhatsAppStatus,
-  listScheduledWhatsAppMessages,
   listWhatsAppChats,
-  processScheduledWhatsAppMessages,
-  scheduleWhatsAppMessage,
   sendWhatsAppMessage,
   whatsappConfigured,
   WhatsAppError,
@@ -280,9 +277,10 @@ app.post("/api/whatsapp/messages/send", async (c) => {
 
 app.get("/api/automations", async (c) => {
   try {
-    const result = await listScheduledWhatsAppMessages(c.env, Number(c.req.query("limit")) || 50);
-    return c.json({ automations: result.schedules.map((item) => ({ ...item, type: "whatsapp" })) });
-  } catch (error) { return whatsappErrorResponse(c, error); }
+    return c.json(await listAutomations(c.env, {
+      source: c.req.query("source"), status: c.req.query("status"), from: c.req.query("from"), to: c.req.query("to"), limit: Number(c.req.query("limit")) || 50,
+    }));
+  } catch (error) { return automationErrorResponse(c, error); }
 });
 
 app.post("/api/whatsapp/schedules/prepare", async (c) => {
@@ -300,15 +298,28 @@ app.post("/api/whatsapp/schedules", async (c) => {
   if (c.req.header("X-Confirm-Schedule") !== "true") return c.json({ error: "schedule confirmation required" }, 409);
   const body = await jsonBody<{ approval?: string }>(c);
   if (!body.approval) return c.json({ error: "approval is required" }, 400);
-  try { return c.json(await scheduleWhatsAppMessage(c.env, await consumeWhatsAppScheduleApproval(c.env, body.approval))); }
-  catch (error) { return whatsappErrorResponse(c, error); }
+  try {
+    const approved = await consumeWhatsAppScheduleApproval(c.env, body.approval);
+    return c.json(await createAutomation(c.env, "whatsapp_message", { jid: approved.jid, message: approved.message, recipient: approved.recipient }, approved.scheduledAt));
+  } catch (error) { return automationErrorResponse(c, error); }
 });
 
 app.delete("/api/automations/:id", async (c) => {
   if (c.req.header("X-Confirm-Cancel") !== "true") return c.json({ error: "cancellation confirmation required" }, 409);
-  try { return c.json(await cancelScheduledWhatsAppMessage(c.env, c.req.param("id"))); }
-  catch (error) { return whatsappErrorResponse(c, error); }
+  try { return c.json(await cancelAutomation(c.env, c.req.param("id"), c.req.query("source"))); }
+  catch (error) { return automationErrorResponse(c, error); }
 });
+
+app.post("/api/automations/:id/retry", async (c) => {
+  if (c.req.header("X-Confirm-Retry") !== "true") return c.json({ error: "retry confirmation required" }, 409);
+  try { return c.json(await retryAutomation(c.env, c.req.param("id"), c.req.query("source"))); }
+  catch (error) { return automationErrorResponse(c, error); }
+});
+
+function automationErrorResponse(c: any, error: unknown) {
+  const status = error instanceof AutomationError ? error.status : error instanceof EmailMcpError ? error.status : error instanceof WhatsAppError ? error.status : 502;
+  return c.json({ error: error instanceof Error ? error.message : "Automation service unavailable" }, status);
+}
 
 function emailErrorResponse(c: any, error: unknown) {
   const status = error instanceof EmailMcpError ? error.status : 502;
@@ -527,6 +538,28 @@ app.post("/api/email/drafts/send", async (c) => {
   } catch (error) {
     return emailErrorResponse(c, error);
   }
+});
+
+app.post("/api/email/automations/prepare", async (c) => {
+  const body = await jsonBody<Record<string, unknown>>(c);
+  try {
+    const preview = await resolveEmailSchedule(await runtimeEnv(c.env), body);
+    const approval = await createEmailApproval(c.env, "schedule-send", preview);
+    return c.json({ requiresConfirmation: true, approval, preview });
+  } catch (error) { return automationErrorResponse(c, error); }
+});
+
+app.post("/api/email/automations", async (c) => {
+  if (c.req.header("X-Confirm-Schedule") !== "true") return c.json({ error: "schedule confirmation required" }, 409);
+  const body = await jsonBody<{ approval?: string }>(c);
+  if (!body.approval) return c.json({ error: "approval is required" }, 400);
+  try {
+    const approved = await consumeEmailApproval(c.env, body.approval, "schedule-send");
+    const payload = await resolveEmailSchedule(await runtimeEnv(c.env), approved);
+    return c.json(await createAutomation(c.env, "email_message", {
+      accountId: payload.accountId, accountName: payload.accountName, to: payload.to, cc: payload.cc, bcc: payload.bcc, subject: payload.subject, body: payload.body,
+    }, payload.scheduledAt));
+  } catch (error) { return automationErrorResponse(c, error); }
 });
 
 app.patch("/api/email/message-state", async (c) => {
@@ -976,7 +1009,7 @@ Tasks are exact operational state. Always use task tools instead of guessing. Ca
 
 Memories is durable personal context. Use recall_memory when an answer depends on preferences, people, history, or past decisions. Use remember_memory when the user explicitly asks you to remember something or clearly states a durable preference, decision, relationship, personal fact, or project fact. After success, briefly confirm what was saved, whether it merged or replaced another memory, and the workspace. Never store credentials, tokens, private keys, raw transcripts, assistant output, routine task changes, or transient conversation. Sensitive personal information requires explicit intent. Do not recall memory for simple task operations.
 
-Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. You may prepare a draft for visible review, but you cannot send, archive, or mark messages read; those actions require the user to press a control in Nudge. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.
+Email is private operational data. Use email tools only when the user explicitly asks about email, an inbox briefing, a specific message, a reply, scheduling a new email, or turning an email into a task. Inbox briefings use headers only: sender, subject, date, and read state. Never read message bodies during a general briefing. Call read_email only when the user explicitly asks to open, read, explain, or summarize a specific message. Never inspect email during ordinary task or memory conversations. Immediate email sending, archive, and read-state changes still require the user to press a control in Nudge. For a new plain-text scheduled email, call prepare_email_schedule, read back the exact sending account, To, Cc, Bcc, subject, body, date, time, and timezone, ask one short confirmation question, then wait for explicit confirmation in a later user turn before calling schedule_email. Never prepare and schedule in the same turn. Scheduled emails are Automations, never Tasks. Use list_automations with source email when asked about scheduled mail, cancel_automation only after explicit cancellation, and retry_automation only after an explicit retry request. Never save email content to Memories unless the user explicitly asks to remember a specific durable fact from it.
 
 Calendar is read-only operational schedule data. Use list_calendar_events when the user asks about meetings, events, availability, or their schedule. Always pass an explicit date range resolved in the user's timezone. Calendar events are not tasks or Memories; never save or modify them unless the user separately asks to create a Nudge task or remember a durable fact.
 
@@ -1096,7 +1129,7 @@ export default {
     }
     ctx.waitUntil(runtimeEnv(env).then((resolvedEnv) => Promise.all([
       processDueReminders(resolvedEnv),
-      processScheduledWhatsAppMessages(resolvedEnv),
+      processDueAutomations(resolvedEnv),
     ])).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

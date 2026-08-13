@@ -1,6 +1,7 @@
-import { ArrowLeft, Check, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Check, Inbox, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchWhatsAppChats, fetchWhatsAppMessages, fetchWhatsAppStatus, prepareWhatsAppMessage, sendWhatsAppMessage } from "../api.js";
+import AutomationList from "./AutomationList.jsx";
 
 function time(value) {
   if (!value) return "";
@@ -19,6 +20,7 @@ export default function WhatsAppView() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [section, setSection] = useState("chats");
   const bottomRef = useRef(null);
 
   async function loadChats(search = query) {
@@ -67,8 +69,13 @@ export default function WhatsAppView() {
       <button type="button" className="icon-action" onClick={() => selected ? openChat(selected) : loadChats()} aria-label="Refresh"><RefreshCw size={17} /></button>
     </header>
 
+    {!selected && <nav className="email-section-nav communication-section-nav" aria-label="WhatsApp sections">
+      <button type="button" className={section === "chats" ? "active" : ""} onClick={() => setSection("chats")}><Inbox size={16} />Chats</button>
+      <button type="button" className={section === "automations" ? "active" : ""} onClick={() => setSection("automations")}><CalendarClock size={16} />Automations</button>
+    </nav>}
+
     {error && <div className="whatsapp-error" role="alert">{error}</div>}
-    {!selected ? <>
+    {!selected && section === "automations" ? <AutomationList source="whatsapp" /> : !selected ? <>
       <form className="whatsapp-search" onSubmit={(e) => { e.preventDefault(); loadChats(); }}>
         <Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search chats" /><button>Search</button>
       </form>

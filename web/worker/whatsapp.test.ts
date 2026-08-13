@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval, createWhatsAppApproval,
   createWhatsAppForwardApproval, createWhatsAppScheduleApproval, getWhatsAppBriefing, getWhatsAppMessages,
-  listWhatsAppChats, processScheduledWhatsAppMessages, scheduleWhatsAppMessage, updateWhatsAppChat, updateWhatsAppMessage,
+  listWhatsAppChats, updateWhatsAppChat, updateWhatsAppMessage,
   whatsappConfig,
 } from "./whatsapp";
 import { runTool } from "./tools";
@@ -207,65 +207,4 @@ describe("WhatsApp adapter", () => {
     vi.useRealTimers();
   });
 
-  it("encrypts scheduled message content before storing it", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-13T12:00:00Z"));
-    let storedPayload = "";
-    const testEnv = {
-      ...env(),
-      NUDGE_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      DB: {
-        prepare: vi.fn(() => ({
-          bind: (payload: string) => ({ run: async () => { storedPayload = payload; return { meta: { last_row_id: 42, changes: 1 } }; } }),
-        })),
-      } as any,
-    };
-    await expect(scheduleWhatsAppMessage(testEnv, {
-      jid: "919999999999@s.whatsapp.net",
-      recipient: "Ayan",
-      message: "Private scheduled text",
-      scheduledAt: "2026-08-13T22:00:00+05:30",
-    })).resolves.toMatchObject({ id: 42, scheduled: true });
-    expect(storedPayload).not.toContain("Private scheduled text");
-    expect(storedPayload).not.toContain("919999999999");
-    vi.useRealTimers();
-  });
-
-  it("delivers a due encrypted automation once and marks it sent", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-13T12:00:00Z"));
-    let encrypted = "";
-    let markedSent = false;
-    const testEnv = {
-      ...env(),
-      NUDGE_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      DB: {
-        prepare: vi.fn((sql: string) => ({
-          bind: (...values: any[]) => ({
-            run: async () => {
-              if (sql.startsWith("INSERT INTO whatsapp_scheduled_messages")) {
-                encrypted = values[0];
-                return { meta: { last_row_id: 7, changes: 1 } };
-              }
-              if (sql.includes("SET status = 'sent'")) markedSent = true;
-              return { meta: { changes: 1 } };
-            },
-          }),
-          all: async () => sql.startsWith("SELECT id, payload_encrypted, attempts")
-            ? { results: [{ id: 7, payload_encrypted: encrypted, attempts: 0 }] }
-            : { results: [] },
-        })),
-      } as any,
-    };
-    await scheduleWhatsAppMessage(testEnv, {
-      jid: "919999999999@s.whatsapp.net", recipient: "Ayan", message: "Delivered later", scheduledAt: "2026-08-13T12:01:00Z",
-    });
-    vi.setSystemTime(new Date("2026-08-13T12:02:00Z"));
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ results: { message_id: "scheduled-1" } }), { status: 200 }));
-    await expect(processScheduledWhatsAppMessages(testEnv)).resolves.toEqual({ claimed: 1, sent: 1, failed: 0 });
-    expect(markedSent).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    fetchMock.mockRestore();
-    vi.useRealTimers();
-  });
 });

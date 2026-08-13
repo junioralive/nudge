@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
+import { Archive, ArrowLeft, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, Cloud, Inbox, LoaderCircle, Mail, Plus, RefreshCw, Search, Server, SquareCheckBig, Trash2, X } from "lucide-react";
 import {
   archiveEmail,
   addEmailAccount,
@@ -15,6 +15,7 @@ import {
   updateEmailMessageState,
 } from "../api.js";
 import EmailDraftDialog from "./EmailDraftDialog.jsx";
+import AutomationList from "./AutomationList.jsx";
 
 function formattedDate(value) {
   if (!value) return "";
@@ -49,6 +50,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   const [taskDraft, setTaskDraft] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [automationsOpen, setAutomationsOpen] = useState(false);
   const [accountView, setAccountView] = useState("list");
   const [accountProvider, setAccountProvider] = useState("");
   const [accountForm, setAccountForm] = useState(EMPTY_ACCOUNT);
@@ -209,6 +211,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
 
   function openAccountManager() {
     setAccountsOpen(true);
+    setAutomationsOpen(false);
     setAccountView(accounts.length ? "list" : "providers");
     setAccountProvider("");
     setEditingAccountId("");
@@ -218,6 +221,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
 
   function closeAccountManager() {
     setAccountsOpen(false);
+    setAutomationsOpen(false);
     setAccountStatus("");
     setEditingAccountId("");
   }
@@ -319,11 +323,12 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
   return <section className="email-view">
     {!selected && <>
     <nav className="email-section-nav" aria-label="Email sections">
-      <button type="button" className={!accountsOpen ? "active" : ""} onClick={closeAccountManager}><Inbox size={16} />Inbox</button>
+      <button type="button" className={!accountsOpen && !automationsOpen ? "active" : ""} onClick={closeAccountManager}><Inbox size={16} />Inbox</button>
       <button type="button" className={accountsOpen ? "active" : ""} onClick={openAccountManager}><SquareCheckBig size={16} />Accounts<span>{accounts.length}</span></button>
+      <button type="button" className={automationsOpen ? "active" : ""} onClick={() => { setAccountsOpen(false); setAutomationsOpen(true); }}><CalendarClock size={16} />Automations</button>
     </nav>
 
-    {!accountsOpen ? <>
+    {!accountsOpen && !automationsOpen ? <>
     <div className="email-overview">
       <div><Inbox size={18} /><span><strong>{summary.total}</strong><small>Inbox messages</small></span></div>
       <div><Circle size={18} /><span><strong>{unread}</strong><small>Unread in view</small></span></div>
@@ -373,7 +378,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
             <ChevronRight size={16} />
           </button>)}
     </div>
-    </> : <section className="email-accounts-page" aria-labelledby="email-accounts-title">
+    </> : accountsOpen ? <section className="email-accounts-page" aria-labelledby="email-accounts-title">
       <header className="email-accounts-page-head">
         <div>{accountView !== "list" && <button type="button" onClick={() => { setAccountView(accounts.length ? "list" : "providers"); setAccountStatus(""); }} aria-label="Go back"><ChevronLeft size={18} /></button>}<div><h2 id="email-accounts-title">{accountView === "providers" ? "Choose your email" : accountView === "form" ? editingAccountId ? "Edit account" : `Connect ${PROVIDERS[accountProvider]?.label || "email"}` : "Email accounts"}</h2><p>{accountView === "providers" ? "Select a provider to continue." : accountView === "form" ? "Your credentials are encrypted before they are stored." : "Connect and manage inboxes available to Nudge."}</p></div></div>
         {accountView === "list" && <button type="button" className="email-accounts-add-button" onClick={() => { setAccountView("providers"); setAccountStatus(""); }}><Plus size={16} />Add account</button>}
@@ -397,7 +402,7 @@ export default function EmailView({ workspaces, defaultWorkspace, onTaskCreated,
         </form>}
         {accountStatus && <p className="email-account-status" role="status">{accountStatus}</p>}
       </div>
-    </section>}
+    </section> : <AutomationList source="email" />}
     </>}
 
     {selected && <section className="email-message-layer" aria-labelledby="email-message-title">

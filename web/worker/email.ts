@@ -17,7 +17,7 @@ export interface EmailReference {
   messageId?: string;
 }
 
-type ApprovalAction = "mark-read" | "mark-unread" | "archive" | "send-draft";
+type ApprovalAction = "mark-read" | "mark-unread" | "archive" | "send-draft" | "schedule-send";
 
 const encoder = new TextEncoder();
 const MESSAGE_REFERENCE_SECONDS = 60 * 60;
@@ -115,7 +115,7 @@ export async function readEmailReference(env: Env, token: string): Promise<Email
   return cleanReference(payload);
 }
 
-export async function createEmailApproval(env: Env, action: ApprovalAction, args: Record<string, unknown>): Promise<string> {
+export async function createEmailApproval(env: Env, action: ApprovalAction, args: object): Promise<string> {
   return signedToken(actionSecret(env), {
     v: 1,
     kind: "email-approval",

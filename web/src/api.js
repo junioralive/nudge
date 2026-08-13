@@ -53,6 +53,25 @@ export function prepareWhatsAppMessage(jid, message, replyMessageId = "") {
 export function sendWhatsAppMessage(approval) {
   return apiFetch("/api/whatsapp/messages/send", { method: "POST", headers: { "X-Confirm-Send": "true" }, body: JSON.stringify({ approval }) });
 }
+export function fetchAutomations(source, options = {}) {
+  const params = new URLSearchParams({ source, limit: String(options.limit || 50) });
+  if (options.status) params.set("status", options.status);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  return apiFetch(`/api/automations?${params}`);
+}
+export function cancelAutomation(id, source) {
+  return apiFetch(`/api/automations/${encodeURIComponent(id)}?source=${encodeURIComponent(source)}`, { method: "DELETE", headers: { "X-Confirm-Cancel": "true" } });
+}
+export function retryAutomation(id, source) {
+  return apiFetch(`/api/automations/${encodeURIComponent(id)}/retry?source=${encodeURIComponent(source)}`, { method: "POST", headers: { "X-Confirm-Retry": "true" } });
+}
+export function prepareEmailAutomation(values) {
+  return apiFetch("/api/email/automations/prepare", { method: "POST", body: JSON.stringify(values) });
+}
+export function scheduleEmailAutomation(approval) {
+  return apiFetch("/api/email/automations", { method: "POST", headers: { "X-Confirm-Schedule": "true" }, body: JSON.stringify({ approval }) });
+}
 
 export function fetchCalendarSources() { return apiFetch("/api/calendar/sources"); }
 export function addCalendarSource(values) { return apiFetch("/api/calendar/sources", { method: "POST", body: JSON.stringify(values) }); }
