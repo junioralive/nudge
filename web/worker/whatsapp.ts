@@ -40,11 +40,11 @@ export function whatsappConfigured(env: Env): boolean {
   return Boolean(whatsappConfig(env));
 }
 
-async function request(env: Env, path: string, init: RequestInit = {}): Promise<any> {
+async function request(env: Env, path: string, init: RequestInit = {}, timeoutMs = 15_000): Promise<any> {
   const config = whatsappConfig(env);
   if (!config) throw new WhatsAppError("WhatsApp is not configured", 503);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${config.baseUrl}${path}`, {
       ...init,
@@ -313,7 +313,7 @@ export async function sendWhatsAppMessage(env: Env, args: { jid: unknown; messag
   const result = await request(env, "/send/message", {
     method: "POST",
     body: JSON.stringify({ phone: jid, message, ...(args.replyMessageId ? { reply_message_id: clean(args.replyMessageId, 300) } : {}) }),
-  });
+  }, 45_000);
   return { sent: true, messageId: clean(result?.results?.message_id || result?.results?.id, 300) || null };
 }
 

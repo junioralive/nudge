@@ -84,6 +84,7 @@ describe("WhatsApp adapter", () => {
   });
 
   it("sends a prepared message after one explicit voice confirmation", async () => {
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/user/my/contacts")) return new Response(JSON.stringify({ results: { data: [{ jid: "919777777777@s.whatsapp.net", name: "Ayan" }] } }), { status: 200 });
@@ -96,6 +97,8 @@ describe("WhatsApp adapter", () => {
     expect(prepared).toMatchObject({ ok: true, requires_confirmation: true, draft: { recipient: "Ayan", message: "Hello" } });
     const sent = await runTool(testEnv, "send_whatsapp_message", { approval: prepared.approval });
     expect(sent).toMatchObject({ ok: true, sent: true, messageId: "sent-1" });
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 45_000);
+    timeoutSpy.mockRestore();
     fetchMock.mockRestore();
   });
 
