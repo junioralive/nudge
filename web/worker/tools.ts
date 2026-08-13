@@ -5,9 +5,11 @@ import { callEmailTool, readEmailReference, safeEmailAccounts, safeEmailList, sa
 import type { Env, TaskRow } from "./types";
 import { listCalendarEvents } from "./calendar";
 import {
-  consumeWhatsAppApproval, consumeWhatsAppForwardApproval, createWhatsAppApproval, createWhatsAppForwardApproval,
+  cancelScheduledWhatsAppMessage, consumeWhatsAppApproval, consumeWhatsAppForwardApproval, consumeWhatsAppScheduleApproval,
+  createWhatsAppApproval, createWhatsAppForwardApproval, createWhatsAppScheduleApproval,
   forwardWhatsAppMessage, getWhatsAppBriefing, getWhatsAppGroup, getWhatsAppMessages, listWhatsAppChats, listWhatsAppGroups,
-  resolveWhatsAppRecipient, searchWhatsAppContacts, sendWhatsAppMessage, updateWhatsAppChat, updateWhatsAppMessage,
+  listScheduledWhatsAppMessages, resolveWhatsAppRecipient, scheduleWhatsAppMessage, searchWhatsAppContacts, sendWhatsAppMessage,
+  updateWhatsAppChat, updateWhatsAppMessage,
 } from "./whatsapp";
 
 export const toolDeclarations: FunctionDeclaration[] = [
@@ -99,6 +101,39 @@ export const toolDeclarations: FunctionDeclaration[] = [
       properties: { approval: { type: Type.STRING, description: "The signed approval returned by prepare_whatsapp_message." } },
       required: ["approval"],
     },
+  },
+  {
+    name: "prepare_whatsapp_schedule",
+    description: "Prepare a WhatsApp message and future delivery time for explicit confirmation. Read back the exact recipient, message, date, time, and timezone, then wait for a later yes/confirm/schedule before calling schedule_whatsapp_message.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        jid: { type: Type.STRING },
+        recipient: { type: Type.STRING },
+        message: { type: Type.STRING },
+        scheduled_at: { type: Type.STRING, description: "Future ISO 8601 datetime with an explicit timezone offset." },
+      },
+      required: ["message", "scheduled_at"],
+    },
+  },
+  {
+    name: "schedule_whatsapp_message",
+    description: "Create the previously prepared WhatsApp automation. Call only after explicit confirmation in a later user turn. This schedules an automation, not a task.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { approval: { type: Type.STRING, description: "Signed approval returned by prepare_whatsapp_schedule." } },
+      required: ["approval"],
+    },
+  },
+  {
+    name: "list_automations",
+    description: "List WhatsApp automations and their pending, sent, failed, or cancelled state. Use when the user asks what is scheduled today or upcoming, or asks whether an automation ran.",
+    parameters: { type: Type.OBJECT, properties: { limit: { type: Type.NUMBER } } },
+  },
+  {
+    name: "cancel_automation",
+    description: "Cancel one known pending or failed automation after the user explicitly asks to cancel it. Obtain its ID with list_automations when needed.",
+    parameters: { type: Type.OBJECT, properties: { id: { type: Type.NUMBER } }, required: ["id"] },
   },
   {
     name: "prepare_whatsapp_forward",
@@ -406,6 +441,42 @@ export async function runTool(env: Env, name: string, args: Record<string, any>)
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : "Could not send WhatsApp message" };
     }
+  }
+  if (name === "prepare_whatsapp_schedule") {
+    if (!args.message?.trim() || !args.scheduled_at) return { ok: false, error: "message and scheduled_at are required" };
+    let jid = String(args.jid || "").slice(0, 240);
+    let recipient = String(args.recipient || "").slice(0, 300);
+    if (!jid && recipient) {
+      try {
+        const resolved = await resolveWhatsAppRecipient(env, recipient);
+        if (!resolved.match) return { ok: false, error: resolved.candidates.length ? "Recipient is ambiguous" : "WhatsApp contact not found", candidates: resolved.candidates };
+        jid = resolved.match.jid;
+        recipient = resolved.match.name;
+      } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "WhatsApp unavailable" }; }
+    }
+    if (!jid) return { ok: false, error: "recipient or chat is required" };
+    try {
+      const message = String(args.message).slice(0, 10_000);
+      const approval = await createWhatsAppScheduleApproval(env, { jid, recipient, message, scheduledAt: args.scheduled_at });
+      return { ok: true, requires_confirmation: true, approval, automation: { type: "whatsapp", recipient, message, scheduledAt: new Date(String(args.scheduled_at)).toISOString() } };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not prepare WhatsApp automation" }; }
+  }
+  if (name === "schedule_whatsapp_message") {
+    if (!args.approval) return { ok: false, error: "approval is required" };
+    try {
+      const approved = await consumeWhatsAppScheduleApproval(env, String(args.approval));
+      return { ok: true, automation: await scheduleWhatsAppMessage(env, approved) };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not schedule WhatsApp message" }; }
+  }
+  if (name === "list_automations") {
+    try {
+      const result = await listScheduledWhatsAppMessages(env, Math.min(Number(args.limit) || 25, 100));
+      return { automations: result.schedules.map((item) => ({ ...item, type: "whatsapp" })) };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not list automations" }; }
+  }
+  if (name === "cancel_automation") {
+    try { return { ok: true, ...(await cancelScheduledWhatsAppMessage(env, args.id)) }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Could not cancel automation" }; }
   }
   if (name === "prepare_whatsapp_forward") {
     if (!args.messageId) return { ok: false, error: "messageId is required" };

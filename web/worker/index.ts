@@ -69,11 +69,17 @@ import { integrationEncryptionKey, loadIntegrationSecret, runtimeEnv } from "./i
 import { accessRecoveryIsFresh, accessTeamLogoutUrl, buildRecoveryPayload, recoveryDownloadResponse } from "./recovery";
 import { addCalendarSource, deleteCalendarSource, listCalendarEvents, listCalendarSources, syncCalendarSource } from "./calendar";
 import {
+  cancelScheduledWhatsAppMessage,
   consumeWhatsAppApproval,
+  consumeWhatsAppScheduleApproval,
   createWhatsAppApproval,
+  createWhatsAppScheduleApproval,
   getWhatsAppMessages,
   getWhatsAppStatus,
+  listScheduledWhatsAppMessages,
   listWhatsAppChats,
+  processScheduledWhatsAppMessages,
+  scheduleWhatsAppMessage,
   sendWhatsAppMessage,
   whatsappConfigured,
   WhatsAppError,
@@ -270,6 +276,38 @@ app.post("/api/whatsapp/messages/send", async (c) => {
     const env = await runtimeEnv(c.env);
     return c.json(await sendWhatsAppMessage(env, await consumeWhatsAppApproval(c.env, body.approval)));
   } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.get("/api/automations", async (c) => {
+  try {
+    const result = await listScheduledWhatsAppMessages(c.env, Number(c.req.query("limit")) || 50);
+    return c.json({ automations: result.schedules.map((item) => ({ ...item, type: "whatsapp" })) });
+  } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.post("/api/whatsapp/schedules/prepare", async (c) => {
+  const body = await jsonBody<{ jid?: string; recipient?: string; message?: string; scheduledAt?: string }>(c);
+  if (!body.jid || !cleanText(body.message, 10_000) || !body.scheduledAt) return c.json({ error: "chat, message, and scheduled time are required" }, 400);
+  try {
+    const approval = await createWhatsAppScheduleApproval(c.env, {
+      jid: body.jid, recipient: body.recipient, message: body.message, scheduledAt: body.scheduledAt,
+    });
+    return c.json({ requiresConfirmation: true, approval, preview: { jid: body.jid, recipient: cleanText(body.recipient, 300), message: cleanText(body.message, 10_000), scheduledAt: new Date(body.scheduledAt).toISOString() } });
+  } catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.post("/api/whatsapp/schedules", async (c) => {
+  if (c.req.header("X-Confirm-Schedule") !== "true") return c.json({ error: "schedule confirmation required" }, 409);
+  const body = await jsonBody<{ approval?: string }>(c);
+  if (!body.approval) return c.json({ error: "approval is required" }, 400);
+  try { return c.json(await scheduleWhatsAppMessage(c.env, await consumeWhatsAppScheduleApproval(c.env, body.approval))); }
+  catch (error) { return whatsappErrorResponse(c, error); }
+});
+
+app.delete("/api/automations/:id", async (c) => {
+  if (c.req.header("X-Confirm-Cancel") !== "true") return c.json({ error: "cancellation confirmation required" }, 409);
+  try { return c.json(await cancelScheduledWhatsAppMessage(c.env, c.req.param("id"))); }
+  catch (error) { return whatsappErrorResponse(c, error); }
 });
 
 function emailErrorResponse(c: any, error: unknown) {
@@ -944,7 +982,7 @@ Calendar is read-only operational schedule data. Use list_calendar_events when t
 
 A general briefing request such as "brief me", "catch me up", or "what did I miss" explicitly authorizes a read-only briefing across configured operational sources. Include open/overdue tasks, today's calendar, header-only email updates, and WhatsApp updates. Call brief_whatsapp for the WhatsApp portion; it reports inbound updates since the previous successful Nudge briefing and does not mark them read. Keep the final briefing concise, group it by source, and clearly mention any configured source that was unavailable.
 
-WhatsApp is private operational data. Outside an explicit general briefing, use WhatsApp tools only when the user explicitly asks about WhatsApp, a contact, group, chat, or message action. Searching contacts, listing chats, and listing groups do not permit reading messages. Read or search messages only after explicit intent and use the narrowest chat, date, sender, text, or media filter available. You may mark read, star, unstar, archive, unarchive, pin, unpin, or react only when the user explicitly requests that exact action; never guess a reaction. To send or forward, first call the matching prepare tool, clearly read back the exact recipient and content or source-message destination, and ask one short confirmation question. Wait for a later user turn containing an explicit yes, confirm, or send before calling the matching final action. Never prepare and execute in the same turn. After an action, state whether it succeeded. Do not require the user to open the WhatsApp screen. Message deletion, revocation, editing, group administration, device control, media download, and call control are unavailable by design. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
+WhatsApp is private operational data. Outside an explicit general briefing, use WhatsApp tools only when the user explicitly asks about WhatsApp, a contact, group, chat, or message action. Searching contacts, listing chats, and listing groups do not permit reading messages. Read or search messages only after explicit intent and use the narrowest chat, date, sender, text, or media filter available. You may mark read, star, unstar, archive, unarchive, pin, unpin, or react only when the user explicitly requests that exact action; never guess a reaction. To send, forward, or schedule, first call the matching prepare tool, clearly read back the exact recipient, content, and for schedules the exact date, time, and timezone, then ask one short confirmation question. Wait for a later user turn containing an explicit yes, confirm, send, or schedule before calling the matching final action. Never prepare and execute in the same turn. Scheduled WhatsApp messages are Automations, never Tasks. Use list_automations when asked what is scheduled today or upcoming, and cancel_automation only after an explicit cancellation request. After an action, state whether it succeeded. Do not require the user to open the WhatsApp screen. Autonomous conversations, message deletion, revocation, editing, group administration, device control, media download, and call control are unavailable by design. Do not save chats or message content to Memories unless the user explicitly asks to remember a specific durable fact.`;
 }
 
 app.post("/api/voice-token", async (c) => {
@@ -979,7 +1017,7 @@ app.post("/api/voice-token", async (c) => {
             systemInstruction: {
               parts: [
                 {
-                  text: `${voiceSystemInstruction(profileName, assistantGender)}\nUser timezone: ${timezone}. Resolve relative dates in this timezone and pass due times with an explicit offset.`,
+                  text: `${voiceSystemInstruction(profileName, assistantGender)}\nCurrent UTC time: ${new Date().toISOString()}. User timezone: ${timezone}. Resolve relative dates in this timezone and pass due and automation times with an explicit offset.`,
                 },
               ],
             },
@@ -1056,6 +1094,9 @@ export default {
       ]).then(() => undefined));
       return;
     }
-    ctx.waitUntil(processDueReminders(env));
+    ctx.waitUntil(runtimeEnv(env).then((resolvedEnv) => Promise.all([
+      processDueReminders(resolvedEnv),
+      processScheduledWhatsAppMessages(resolvedEnv),
+    ])).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

@@ -1,4 +1,6 @@
 import type { Env } from "./types";
+import { openJson, sealJson } from "./email-core/crypto";
+import { integrationEncryptionKey } from "./integrationSecrets";
 
 const encoder = new TextEncoder();
 const APPROVAL_SECONDS = 10 * 60;
@@ -413,6 +415,179 @@ export async function createWhatsAppForwardApproval(env: Env, args: { jid: unkno
     recipient: clean(args.recipient, 300), nonce: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + APPROVAL_SECONDS,
   })));
   return `${payload}.${await signature(actionSecret(env), payload)}`;
+}
+
+function scheduledAt(value: unknown): string {
+  const date = new Date(clean(value, 100));
+  if (Number.isNaN(date.getTime())) throw new WhatsAppError("Scheduled time must be a valid ISO 8601 datetime with timezone", 400);
+  if (date.getTime() <= Date.now()) throw new WhatsAppError("Scheduled time must be in the future", 400);
+  return date.toISOString();
+}
+
+export async function createWhatsAppScheduleApproval(env: Env, args: {
+  jid: unknown; message: unknown; recipient?: unknown; scheduledAt: unknown;
+}): Promise<string> {
+  const message = clean(args.message, 10_000);
+  if (!message) throw new WhatsAppError("Message is required", 400);
+  const payload = base64Url(encoder.encode(JSON.stringify({
+    v: 1,
+    kind: "whatsapp-schedule",
+    jid: validJid(args.jid),
+    message,
+    recipient: clean(args.recipient, 300),
+    scheduledAt: scheduledAt(args.scheduledAt),
+    nonce: crypto.randomUUID(),
+    exp: Math.floor(Date.now() / 1000) + APPROVAL_SECONDS,
+  })));
+  return `${payload}.${await signature(actionSecret(env), payload)}`;
+}
+
+async function verifiedApproval(env: Env, token: string, kind: string): Promise<any> {
+  const [encoded, supplied, extra] = token.split(".");
+  if (!encoded || !supplied || extra) throw new WhatsAppError("Invalid WhatsApp approval", 400);
+  const expected = await signature(actionSecret(env), encoded);
+  if (expected.length !== supplied.length) throw new WhatsAppError("Invalid WhatsApp approval", 400);
+  let difference = 0;
+  for (let index = 0; index < expected.length; index += 1) difference |= expected.charCodeAt(index) ^ supplied.charCodeAt(index);
+  if (difference) throw new WhatsAppError("Invalid WhatsApp approval", 400);
+  try {
+    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded), (char) => char.charCodeAt(0))));
+    if (payload.kind !== kind || payload.v !== 1 || !payload.nonce || Number(payload.exp) < Math.floor(Date.now() / 1000)) {
+      throw new Error("expired");
+    }
+    return payload;
+  } catch {
+    throw new WhatsAppError("WhatsApp approval expired", 409);
+  }
+}
+
+export async function consumeWhatsAppScheduleApproval(env: Env, token: string) {
+  const payload = await verifiedApproval(env, token, "whatsapp-schedule");
+  try {
+    await env.DB.prepare("INSERT INTO whatsapp_action_nonces (nonce, action) VALUES (?, 'schedule')").bind(String(payload.nonce)).run();
+  } catch { throw new WhatsAppError("WhatsApp approval was already used", 409); }
+  return {
+    jid: validJid(payload.jid),
+    message: clean(payload.message, 10_000),
+    recipient: clean(payload.recipient, 300),
+    scheduledAt: scheduledAt(payload.scheduledAt),
+  };
+}
+
+interface WhatsAppSchedulePayload {
+  jid: string;
+  message: string;
+  recipient: string;
+}
+
+function scheduleEncryptionKey(env: Env): string {
+  const key = integrationEncryptionKey(env);
+  if (!key) throw new WhatsAppError("Nudge encryption is not configured", 503);
+  return key;
+}
+
+export async function scheduleWhatsAppMessage(env: Env, args: {
+  jid: unknown; message: unknown; recipient?: unknown; scheduledAt: unknown;
+}) {
+  const payload: WhatsAppSchedulePayload = {
+    jid: validJid(args.jid),
+    message: clean(args.message, 10_000),
+    recipient: clean(args.recipient, 300),
+  };
+  if (!payload.message) throw new WhatsAppError("Message is required", 400);
+  const due = scheduledAt(args.scheduledAt);
+  const result = await env.DB.prepare(
+    "INSERT INTO whatsapp_scheduled_messages (payload_encrypted, scheduled_at) VALUES (?, ?)",
+  ).bind(await sealJson(payload, scheduleEncryptionKey(env)), due).run();
+  return { scheduled: true, id: Number(result.meta.last_row_id), scheduledAt: due, recipient: payload.recipient || payload.jid.split("@")[0] };
+}
+
+export async function listScheduledWhatsAppMessages(env: Env, limitValue = 25) {
+  const limit = Math.min(Math.max(Number(limitValue) || 25, 1), 100);
+  const rows = await env.DB.prepare(
+    `SELECT id, payload_encrypted, scheduled_at, status, attempts, sent_at, last_error, created_at
+     FROM whatsapp_scheduled_messages
+     ORDER BY CASE WHEN status IN ('pending', 'sending') THEN 0 ELSE 1 END,
+              CASE WHEN status IN ('pending', 'sending') THEN scheduled_at END ASC,
+              scheduled_at DESC
+     LIMIT ?`,
+  ).bind(limit).all<any>();
+  const key = scheduleEncryptionKey(env);
+  const schedules = await Promise.all((rows.results || []).map(async (row) => {
+    const payload = await openJson<WhatsAppSchedulePayload>(row.payload_encrypted, key);
+    return {
+      id: row.id,
+      recipient: payload.recipient || payload.jid.split("@")[0],
+      message: payload.message,
+      scheduledAt: row.scheduled_at,
+      status: row.status,
+      attempts: row.attempts,
+      sentAt: row.sent_at,
+      error: row.last_error,
+      createdAt: row.created_at,
+    };
+  }));
+  return { schedules };
+}
+
+export async function cancelScheduledWhatsAppMessage(env: Env, idValue: unknown) {
+  const id = Number(idValue);
+  if (!Number.isInteger(id) || id <= 0) throw new WhatsAppError("Invalid scheduled message", 400);
+  const result = await env.DB.prepare(
+    "UPDATE whatsapp_scheduled_messages SET status = 'cancelled', claimed_at = NULL WHERE id = ? AND status IN ('pending', 'failed')",
+  ).bind(id).run();
+  if (!result.meta.changes) throw new WhatsAppError("Scheduled message could not be cancelled", 409);
+  return { cancelled: true, id };
+}
+
+function retryDelaySeconds(attempt: number): number {
+  return [60, 300, 900, 3600][Math.min(Math.max(attempt - 1, 0), 3)];
+}
+
+export async function processScheduledWhatsAppMessages(env: Env): Promise<{ claimed: number; sent: number; failed: number }> {
+  if (!whatsappConfigured(env)) return { claimed: 0, sent: 0, failed: 0 };
+  const due = await env.DB.prepare(
+    `SELECT id, payload_encrypted, attempts FROM whatsapp_scheduled_messages
+     WHERE (status = 'pending' AND scheduled_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       AND (next_retry_at IS NULL OR next_retry_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
+       OR (status = 'sending' AND claimed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 minutes'))
+     ORDER BY scheduled_at LIMIT 10`,
+  ).all<any>();
+  const key = scheduleEncryptionKey(env);
+  let claimed = 0;
+  let sent = 0;
+  let failed = 0;
+  for (const row of due.results || []) {
+    const claim = await env.DB.prepare(
+      `UPDATE whatsapp_scheduled_messages SET status = 'sending', claimed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE id = ? AND (status = 'pending' OR (status = 'sending' AND claimed_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 minutes')))`,
+    ).bind(row.id).run();
+    if (!claim.meta.changes) continue;
+    claimed += 1;
+    const attempt = Number(row.attempts || 0) + 1;
+    try {
+      const payload = await openJson<WhatsAppSchedulePayload>(row.payload_encrypted, key);
+      const result = await sendWhatsAppMessage(env, payload);
+      await env.DB.prepare(
+        `UPDATE whatsapp_scheduled_messages SET status = 'sent', attempts = ?, sent_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+         message_id = ?, claimed_at = NULL, next_retry_at = NULL, last_error = NULL WHERE id = ?`,
+      ).bind(attempt, result.messageId, row.id).run();
+      sent += 1;
+      console.log("whatsapp_schedule_delivery", { scheduleId: row.id, delivered: true, attempt });
+    } catch (error) {
+      const terminal = attempt >= 5;
+      const message = error instanceof WhatsAppError ? error.message : "WhatsApp delivery failed";
+      await env.DB.prepare(
+        `UPDATE whatsapp_scheduled_messages SET status = ?, attempts = ?, claimed_at = NULL,
+         next_retry_at = CASE WHEN ? THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' seconds') END,
+         last_error = ? WHERE id = ?`,
+      ).bind(terminal ? "failed" : "pending", attempt, terminal ? 1 : 0, retryDelaySeconds(attempt), message, row.id).run();
+      failed += 1;
+      console.log("whatsapp_schedule_delivery", { scheduleId: row.id, delivered: false, attempt, terminal });
+    }
+  }
+  return { claimed, sent, failed };
 }
 
 export async function consumeWhatsAppApproval(env: Env, token: string) {
